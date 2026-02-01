@@ -46,6 +46,7 @@ import "@babylonjs/loaders/glTF";
 
 import { Color3, HemisphericLight } from "@babylonjs/core";
 import { CharacterControls } from "./CharacterControls";
+import { LoadingOverlay } from "./loadingOverlay";
 
 type CharState = "IN_AIR" | "ON_GROUND" | "START_JUMP";
 
@@ -60,63 +61,12 @@ export default function createScene(
   canvas.tabIndex = 1;
   canvas.style.outline = "none";
 
-  // ------------------------------------------------------------
-  // Host + loading overlay (buttons shown only after loading)
-  // ------------------------------------------------------------
-  const host = canvas.parentElement ?? document.body;
+  const host = (canvas.parentElement ?? document.body) as HTMLElement;
 
-  if (host !== document.body) {
-    const cs = window.getComputedStyle(host);
-    if (cs.position === "static")
-      (host as HTMLElement).style.position = "relative";
-  }
-
-  const styleId = "ui-spin-style";
-  if (!document.getElementById(styleId)) {
-    const st = document.createElement("style");
-    st.id = styleId;
-    st.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
-    document.head.appendChild(st);
-  }
-
-  const loading = document.createElement("div");
-  loading.style.position = "absolute";
-  loading.style.inset = "0";
-  loading.style.zIndex = "10000";
-  loading.style.display = "grid";
-  loading.style.placeItems = "center";
-  loading.style.background = "rgba(0,0,0,0.55)";
-  loading.style.backdropFilter = "blur(6px)";
-
-  const spinner = document.createElement("div");
-  spinner.style.width = "44px";
-  spinner.style.height = "44px";
-  spinner.style.borderRadius = "999px";
-  spinner.style.border = "3px solid rgba(255,255,255,0.25)";
-  spinner.style.borderTopColor = "white";
-  spinner.style.animation = "spin 0.9s linear infinite";
-
-  const label = document.createElement("div");
-  label.textContent = "Loading…";
-  label.style.marginTop = "10px";
-  label.style.color = "white";
-  label.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  label.style.fontSize = "13px";
-  label.style.opacity = "0.9";
-  label.style.textAlign = "center";
-
-  const wrap = document.createElement("div");
-  wrap.style.display = "flex";
-  wrap.style.flexDirection = "column";
-  wrap.style.alignItems = "center";
-
-  wrap.appendChild(spinner);
-  wrap.appendChild(label);
-  loading.appendChild(wrap);
-  host.appendChild(loading);
-
-  const hideLoading = () => loading.remove();
-  scene.onDisposeObservable.add(() => loading.remove());
+  // Loading overlay component
+  const loading = new LoadingOverlay(host);
+  loading.show();
+  scene.onDisposeObservable.add(() => loading.dispose());
 
   MeshBuilder.CreateBox(
     "backgroundCube",
@@ -183,7 +133,6 @@ export default function createScene(
 
   const ensureUniqueMaterial = (mesh: AbstractMesh) => {
     if (!mesh.material) return;
-
     const md = ensureMetadata(mesh);
     if (md[UNIQUE_MAT_KEY] === true) return;
 
@@ -192,15 +141,11 @@ export default function createScene(
       `${original.name || "mat"}__${mesh.name}`,
     ) as Material;
     mesh.material = cloned;
-
     md[UNIQUE_MAT_KEY] = true;
   };
 
   const toggleMaterialTransparency = (mesh: AbstractMesh, alphaOn = 0.25) => {
-    if (!mesh.material) {
-      console.warn("Mesh has no material:", mesh.name);
-      return;
-    }
+    if (!mesh.material) return;
 
     ensureUniqueMaterial(mesh);
 
@@ -255,7 +200,7 @@ export default function createScene(
   };
 
   // ---------------------------------------------------------------------------
-  // Bottom-right buttons (created now, attached AFTER loading)
+  // Bottom-right buttons (created after loading completes)
   // ---------------------------------------------------------------------------
   const ensureFontAwesomeLoaded = () => {
     const id = "fa-cdn";
@@ -268,8 +213,14 @@ export default function createScene(
     document.head.appendChild(link);
   };
 
-  const makeUIButtons = () => {
+  const createButtonsUI = () => {
     ensureFontAwesomeLoaded();
+
+    // ensure host positioning
+    if (host !== document.body) {
+      const cs = window.getComputedStyle(host);
+      if (cs.position === "static") host.style.position = "relative";
+    }
 
     const ui = document.createElement("div");
     ui.style.position = "absolute";
@@ -310,23 +261,22 @@ export default function createScene(
       i.style.color = "white";
       i.style.fontSize = "18px";
       i.style.lineHeight = "1";
-      b.appendChild(i);
 
+      b.appendChild(i);
       return { button: b, icon: i };
     };
 
-    // X-ray button
+    // X-ray
     const { button: xrayBtn } = makeRoundButton(
       "fa-solid fa-eye",
       "Toggle Side Panel X-ray",
     );
-
     xrayBtn.addEventListener("click", () => {
       const mesh = findMeshByName("Side Panel");
       if (mesh) toggleMaterialTransparency(mesh, 0.25);
     });
 
-    // Play/Pause button
+    // Play/Pause
     let animationsPaused = false;
     const { button: playPauseBtn, icon: playPauseIcon } = makeRoundButton(
       "fa-solid fa-pause",
@@ -343,38 +293,28 @@ export default function createScene(
       }
     };
 
-    const setAnimationsPaused = (paused: boolean) => {
-      animationsPaused = paused;
+    playPauseBtn.addEventListener("click", () => {
+      animationsPaused = !animationsPaused;
       for (const ag of scene.animationGroups) {
-        if (paused) ag.pause();
+        if (animationsPaused) ag.pause();
         else ag.play(true);
       }
       setPlayPauseIcon();
-    };
-
-    playPauseBtn.addEventListener("click", () => {
-      setAnimationsPaused(!animationsPaused);
     });
 
     ui.appendChild(playPauseBtn);
     ui.appendChild(xrayBtn);
 
-    return ui;
-  };
-
-  let buttonsUI: HTMLDivElement | null = null;
-
-  const showButtons = () => {
-    if (buttonsUI) return;
-    buttonsUI = makeUIButtons();
-    host.appendChild(buttonsUI);
-    scene.onDisposeObservable.add(() => buttonsUI?.remove());
+    host.appendChild(ui);
+    scene.onDisposeObservable.add(() => ui.remove());
   };
 
   // ---------------------------------------------------------------------------
   // Scene init
   // ---------------------------------------------------------------------------
   (async () => {
+    loading.setText("Loading physics…");
+
     const havok = await HavokPhysics();
     const hk = new HavokPlugin(false, havok);
     scene.enablePhysics(new Vector3(0, -9.8, 0), hk);
@@ -489,7 +429,7 @@ export default function createScene(
       }
     };
 
-    label.textContent = "Loading moving parts…";
+    loading.setText("Loading moving parts…");
 
     // --- LOAD moving parts
     await new Promise<void>((resolve) => {
@@ -543,7 +483,6 @@ export default function createScene(
           }
 
           for (const ag of animationGroups) ag.start(true);
-
           hideChildrenByName(root, HIDDEN_MESH_NAMES);
 
           resolve();
@@ -551,7 +490,7 @@ export default function createScene(
       );
     });
 
-    label.textContent = "Loading static parts…";
+    loading.setText("Loading static parts…");
 
     // --- LOAD static parts
     const staticFile = "prototype_static_parts.glb";
@@ -595,7 +534,7 @@ export default function createScene(
       });
     });
 
-    label.textContent = "Loading caustics…";
+    loading.setText("Loading caustics…");
 
     // --- Caustics
     const textureCamera = new ArcRotateCamera(
@@ -680,7 +619,7 @@ export default function createScene(
       textureCamera,
     );
 
-    label.textContent = "Loading environment…";
+    loading.setText("Loading environment…");
 
     // --- underwater ground
     await new Promise<void>((resolve) => {
@@ -899,14 +838,17 @@ export default function createScene(
       characterController.integrate(dt, support, characterGravity);
     });
 
-    // ✅ Done: hide loading + show buttons
-    hideLoading();
-    showButtons();
+    // ✅ Done
+    loading.hide();
+    createButtonsUI();
+
+    // focus canvas so WASD works immediately
+    canvas.focus();
   })().catch((err: unknown) => {
     console.error("Init failed:", err);
-    hideLoading(); // don't get stuck
-    // optionally: still show buttons so you can try toggles
-    showButtons();
+    loading.setText("Failed to load.");
+    // optional: keep overlay or hide it; your call
+    // loading.hide();
   });
 
   return scene;
