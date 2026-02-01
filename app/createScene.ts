@@ -104,6 +104,12 @@ export default function createScene(
   const META_KEY = "__transparencyBackup";
   const UNIQUE_MAT_KEY = "__uniqueMaterialCloned";
 
+  const focusCanvas = () => {
+    window.setTimeout(() => {
+      canvas.focus();
+    }, 0);
+  };
+
   const getAlpha = (mat: Material): number => {
     const a = (mat as unknown as { alpha?: number }).alpha;
     return typeof a === "number" ? a : 1;
@@ -274,6 +280,7 @@ export default function createScene(
     xrayBtn.addEventListener("click", () => {
       const mesh = findMeshByName("Side Panel");
       if (mesh) toggleMaterialTransparency(mesh, 0.25);
+      focusCanvas();
     });
 
     // Play/Pause
@@ -300,6 +307,7 @@ export default function createScene(
         else ag.play(true);
       }
       setPlayPauseIcon();
+      focusCanvas();
     });
 
     ui.appendChild(playPauseBtn);
