@@ -395,8 +395,8 @@ export default function createScene(
     new PhysicsAggregate(wallW, PhysicsShapeType.BOX, { mass: 0 }, scene);
 
     // Slab
-    const slabLength = 4;
-    const slabWidth = 2.5;
+    const slabLength = 6;
+    const slabWidth = 2;
     const slabHeight = 0.5;
 
     const slab = MeshBuilder.CreateBox(
@@ -414,6 +414,43 @@ export default function createScene(
 
     new PhysicsAggregate(slab, PhysicsShapeType.BOX, { mass: 0 }, scene);
     slab.isPickable = false;
+
+    // --- Support slab: another slab on top, tilted 20 degrees as a support
+    const supportLength = 3.2;
+    const supportWidth = 2;
+    const supportHeight = 1.5;
+    const supportAngle = Tools.ToRadians(-20);
+
+    const supportSlab = MeshBuilder.CreateBox(
+      "supportSlab",
+      { width: supportWidth, height: supportHeight, depth: supportLength },
+      scene,
+    );
+    supportSlab.layerMask = 1;
+
+    // Use same material as the main slab (or clone if you want)
+    supportSlab.material = slabMat;
+
+    // Make it static + not pickable
+    supportSlab.isPickable = false;
+    new PhysicsAggregate(supportSlab, PhysicsShapeType.BOX, { mass: 0 }, scene);
+
+    // Pivot at the "bottom-back" edge so it tilts like a ramp resting on slab
+    // Box local axes: width=X, height=Y, depth=Z
+    supportSlab.setPivotPoint(
+      new Vector3(0, -supportHeight / 2, -supportLength / 2),
+    );
+
+    // Place the pivot point on the top surface of the main slab
+    supportSlab.position.set(
+      slab.position.x,
+      0.8,
+      slab.position.z - slabLength * 0.15, // small offset so it supports the device better
+    );
+
+    // Tilt upward (around X)
+    supportSlab.rotationQuaternion = null;
+    supportSlab.rotation.x = -supportAngle;
 
     const protoRootUrl = "/";
     const protoFile = "prototype_moving_parts.glb";
