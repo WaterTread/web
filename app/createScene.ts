@@ -46,6 +46,7 @@ import "@babylonjs/loaders/glTF";
 
 import { Color3, HemisphericLight } from "@babylonjs/core";
 import { CharacterControls } from "./CharacterControls";
+import { ParticleHelper } from "./ParticleHelper";
 import { PointerController } from "./PointerController";
 import { LoadingOverlay } from "./loadingOverlay";
 
@@ -395,7 +396,7 @@ export default function createScene(
     new PhysicsAggregate(wallW, PhysicsShapeType.BOX, { mass: 0 }, scene);
 
     // Slab
-    const slabLength = 6;
+    const slabLength = 4.75;
     const slabWidth = 2;
     const slabHeight = 0.5;
 
@@ -617,6 +618,109 @@ export default function createScene(
     rtt.activeCamera = textureCamera;
     scene.customRenderTargets.push(rtt);
     rtt.renderList?.push(waterPlane);
+    // --- LOAD flowdiverter
+    loading.setText("Loading flow diverter…");
+
+    const flowDiverterFile = "flow_diverter.glb";
+
+    await new Promise<void>((resolve) => {
+      SceneLoader.ImportMesh(
+        "",
+        protoRootUrl,
+        flowDiverterFile,
+        scene,
+        (meshes) => {
+          const root = meshes[0] as AbstractMesh | undefined;
+          if (!root) {
+            resolve();
+            return;
+          }
+
+          // Root name as requested
+          root.name = "flowdiverter";
+
+          // Layer mask
+          for (const m of meshes) {
+            m.layerMask = 1;
+          }
+
+          // Material (optional). Poista jos haluat käyttää GLB:n omia materiaaleja.
+          const diverterMat = new PBRMaterial("flowDiverterMat", scene);
+          diverterMat.albedoColor = new Color3(0.25, 0.25, 0.28);
+          diverterMat.metallic = 0.0;
+          diverterMat.roughness = 0.7;
+
+          const renderMeshes = root.getChildMeshes(true) as AbstractMesh[];
+          for (const m of renderMeshes) {
+            if (m.getTotalVertices && m.getTotalVertices() > 0) {
+              m.material = diverterMat;
+            }
+            m.layerMask = 1;
+          }
+
+          // ✅ EI KALLISTUSTA: ei kosketa root.rotation/rotationQuaternion ollenkaan
+
+          // Sijoitus: sama position + scale kuin movingRoot (mutta EI rotationia)
+          if (movingRoot) {
+            // copy position + scaling only
+            root.position.copyFrom(movingRoot.position);
+            root.scaling.copyFrom(movingRoot.scaling);
+
+            // pieni offset: nosta hieman ja siirrä vähän eteen (säädä halutessa)
+            root.position.y -= 0.3;
+            root.position.z += 3.3;
+          } else {
+            root.position.copyFrom(slab.position);
+            root.position.y += slabHeight / 2 + 0.15;
+            root.scaling.setAll(0.01);
+          }
+
+          // Jos flowdiverter on mallinnettu samaan mittaan kuin proto, tämä on ok.
+          // Jos mittakaava on eri, säädä tätä:
+          root.scaling.setAll(0.01);
+
+          // Colliderit (staattinen)
+          for (const cm of renderMeshes) {
+            if (!cm.getTotalVertices || cm.getTotalVertices() === 0) continue;
+            new PhysicsAggregate(cm, PhysicsShapeType.MESH, { mass: 0 }, scene);
+            cm.isPickable = false;
+          }
+
+          resolve();
+        },
+      );
+    });
+
+    // Laitteen etu -> laitteen taakse (valitse +Z tai -Z sen mukaan kumpi on "taakse")
+    const DEVICE_FLOW_DIR = new Vector3(0, 0, -1); // <-- jos väärin päin, vaihda (0,0,-1)
+
+    const waterParticles = ParticleHelper.createWaterFlowParticles({
+      scene,
+      emitter: waterPlane,
+
+      // EI enää cameraan sidottu, vaan laitteen suuntaan
+      flowDir: DEVICE_FLOW_DIR,
+
+      // vähän pienempi alue
+      area: { x: 7.5, z: 7.5 },
+
+      // edelleen hieman korkeammalla, mutta voi myös laskea jos haluat
+      emitY: { min: 0.7, max: 1.6 },
+
+      // hieman vähemmän pölyä
+      dustEmitRate: 520,
+      dustCapacity: 12000,
+
+      // roskaa harvemmin ja vähemmän
+      debrisChancePerSecond: 0.15,
+      debrisBurstMin: 1,
+      debrisBurstMax: 6,
+      debrisCapacity: 1800,
+    });
+
+    scene.onDisposeObservable.add(() => {
+      waterParticles.dispose();
+    });
 
     const spot = new SpotLight(
       "spotLight",
