@@ -842,7 +842,7 @@ export default function createScene(
     displayCapsule.layerMask = 1;
     displayCapsule.isVisible = false;
 
-    const characterPosition = new Vector3(-1.75, 4.0, -6.0);
+    const characterPosition = new Vector3(-2, 3.0, 5.0);
     const characterController = new PhysicsCharacterController(
       characterPosition,
       { capsuleHeight: h, capsuleRadius: r },
@@ -1001,6 +1001,7 @@ export default function createScene(
     createButtonsUI();
 
     canvas.focus();
+    controls.yaw += Math.PI + Tools.ToRadians(-25);
   })().catch((err: unknown) => {
     console.error("Init failed:", err);
     loading.setText("Failed to load.");
