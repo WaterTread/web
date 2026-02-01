@@ -203,6 +203,19 @@ export default function createScene(
     );
   };
 
+  const ensureFontAwesomeLoaded = () => {
+    const id = "fa-cdn";
+    if (document.getElementById(id)) return;
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href =
+      "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css";
+    document.head.appendChild(link);
+  };
+
+  ensureFontAwesomeLoaded();
+
   const host = canvas.parentElement ?? document.body;
 
   // Make sure absolute positioning works: parent must be relative
@@ -215,38 +228,97 @@ export default function createScene(
 
   const ui = document.createElement("div");
   ui.style.position = "absolute";
-  ui.style.top = "10px";
-  ui.style.left = "10px";
+  ui.style.right = "16px";
+  ui.style.bottom = "16px";
   ui.style.zIndex = "9999";
   ui.style.display = "flex";
-  ui.style.gap = "8px";
+  ui.style.flexDirection = "column";
+  ui.style.gap = "10px";
   ui.style.alignItems = "center";
-  ui.style.padding = "8px";
-  ui.style.borderRadius = "10px";
-  ui.style.background = "rgba(0,0,0,0.55)";
-  ui.style.backdropFilter = "blur(6px)";
 
-  const btn = document.createElement("button");
-  btn.textContent = "Toggle transparent";
-  btn.style.padding = "8px 12px";
-  btn.style.borderRadius = "8px";
-  btn.style.border = "1px solid rgba(255,255,255,0.25)";
-  btn.style.background = "rgba(255,255,255,0.12)";
-  btn.style.color = "white";
-  btn.style.cursor = "pointer";
+  const makeRoundButton = (iconClass: string, title: string) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.title = title;
 
-  ui.appendChild(btn);
-  host.appendChild(ui);
+    b.style.width = "52px";
+    b.style.height = "52px";
+    b.style.borderRadius = "999px";
+    b.style.border = "1px solid rgba(255,255,255,0.14)";
+    b.style.background = "rgba(0,0,0,0.70)";
+    b.style.backdropFilter = "blur(8px)";
+    b.style.display = "grid";
+    b.style.placeItems = "center";
+    b.style.cursor = "pointer";
+    b.style.userSelect = "none";
+    b.style.outline = "none";
 
-  const doToggle = () => {
+    // hover effect
+    b.addEventListener("mouseenter", () => {
+      b.style.background = "rgba(0,0,0,0.82)";
+    });
+    b.addEventListener("mouseleave", () => {
+      b.style.background = "rgba(0,0,0,0.70)";
+    });
+
+    const i = document.createElement("i");
+    i.className = iconClass;
+    i.style.color = "white";
+    i.style.fontSize = "18px";
+    i.style.lineHeight = "1";
+
+    b.appendChild(i);
+    return { button: b, icon: i };
+  };
+
+  // --- X-ray button (Side Panel transparency toggle)
+  const { button: xrayBtn, icon: xrayIcon } = makeRoundButton(
+    "fa-solid fa-eye", // vaihtoehto: "fa-solid fa-eye" / "fa-solid fa-x-ray"
+    "Toggle Side Panel X-ray",
+  );
+
+  const doXrayToggle = () => {
     const name = "Side Panel";
     const mesh = findMeshByName(name);
-    if (mesh) {
-      toggleMaterialTransparency(mesh, 0.25);
+    if (mesh) toggleMaterialTransparency(mesh, 0.25);
+  };
+
+  xrayBtn.addEventListener("click", doXrayToggle);
+
+  // --- Play/Pause button (all animationGroups)
+  let animationsPaused = false;
+  const { button: playPauseBtn, icon: playPauseIcon } = makeRoundButton(
+    "fa-solid fa-pause",
+    "Pause animations",
+  );
+
+  const setPlayPauseIcon = () => {
+    if (animationsPaused) {
+      playPauseIcon.className = "fa-solid fa-play";
+      playPauseBtn.title = "Play animations";
+    } else {
+      playPauseIcon.className = "fa-solid fa-pause";
+      playPauseBtn.title = "Pause animations";
     }
   };
 
-  btn.addEventListener("click", doToggle);
+  const setAnimationsPaused = (paused: boolean) => {
+    animationsPaused = paused;
+    for (const ag of scene.animationGroups) {
+      if (paused) ag.pause();
+      else ag.play(true);
+    }
+    setPlayPauseIcon();
+  };
+
+  playPauseBtn.addEventListener("click", () => {
+    setAnimationsPaused(!animationsPaused);
+  });
+
+  // Add to UI (order: play/pause on top, x-ray below)
+  ui.appendChild(playPauseBtn);
+  ui.appendChild(xrayBtn);
+  host.appendChild(ui);
 
   scene.onDisposeObservable.add(() => {
     ui.remove();
