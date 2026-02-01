@@ -46,6 +46,7 @@ import "@babylonjs/loaders/glTF";
 
 import { Color3, HemisphericLight } from "@babylonjs/core";
 import { CharacterControls } from "./CharacterControls";
+import { PointerController } from "./PointerController";
 import { LoadingOverlay } from "./loadingOverlay";
 
 type CharState = "IN_AIR" | "ON_GROUND" | "START_JUMP";
@@ -255,6 +256,11 @@ export default function createScene(
       b.style.userSelect = "none";
       b.style.outline = "none";
 
+      // prevent button from stealing focus
+      b.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+      });
+
       b.addEventListener("mouseenter", () => {
         b.style.background = "rgba(0,0,0,0.82)";
       });
@@ -274,7 +280,7 @@ export default function createScene(
 
     // X-ray
     const { button: xrayBtn } = makeRoundButton(
-      "fa-solid fa-eye",
+      "fa-solid fa-glasses",
       "Toggle Side Panel X-ray",
     );
     xrayBtn.addEventListener("click", () => {
@@ -704,6 +710,10 @@ export default function createScene(
 
     camera.setTarget(characterPosition);
 
+    // ✅ PointerController käyttöön (drag yaw + click-to-move)
+    const pointer = new PointerController(scene, characterController, controls);
+    scene.onDisposeObservable.add(() => pointer.dispose());
+
     const getNextState = (
       supportInfo: ReturnType<PhysicsCharacterController["checkSupport"]>,
     ): CharState => {
@@ -846,11 +856,9 @@ export default function createScene(
       characterController.integrate(dt, support, characterGravity);
     });
 
-    // ✅ Done
     loading.hide();
     createButtonsUI();
 
-    // focus canvas so WASD works immediately
     canvas.focus();
   })().catch((err: unknown) => {
     console.error("Init failed:", err);
