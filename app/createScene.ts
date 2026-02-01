@@ -60,6 +60,64 @@ export default function createScene(
   canvas.tabIndex = 1;
   canvas.style.outline = "none";
 
+  // ------------------------------------------------------------
+  // Host + loading overlay (buttons shown only after loading)
+  // ------------------------------------------------------------
+  const host = canvas.parentElement ?? document.body;
+
+  if (host !== document.body) {
+    const cs = window.getComputedStyle(host);
+    if (cs.position === "static")
+      (host as HTMLElement).style.position = "relative";
+  }
+
+  const styleId = "ui-spin-style";
+  if (!document.getElementById(styleId)) {
+    const st = document.createElement("style");
+    st.id = styleId;
+    st.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
+    document.head.appendChild(st);
+  }
+
+  const loading = document.createElement("div");
+  loading.style.position = "absolute";
+  loading.style.inset = "0";
+  loading.style.zIndex = "10000";
+  loading.style.display = "grid";
+  loading.style.placeItems = "center";
+  loading.style.background = "rgba(0,0,0,0.55)";
+  loading.style.backdropFilter = "blur(6px)";
+
+  const spinner = document.createElement("div");
+  spinner.style.width = "44px";
+  spinner.style.height = "44px";
+  spinner.style.borderRadius = "999px";
+  spinner.style.border = "3px solid rgba(255,255,255,0.25)";
+  spinner.style.borderTopColor = "white";
+  spinner.style.animation = "spin 0.9s linear infinite";
+
+  const label = document.createElement("div");
+  label.textContent = "Loading…";
+  label.style.marginTop = "10px";
+  label.style.color = "white";
+  label.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial";
+  label.style.fontSize = "13px";
+  label.style.opacity = "0.9";
+  label.style.textAlign = "center";
+
+  const wrap = document.createElement("div");
+  wrap.style.display = "flex";
+  wrap.style.flexDirection = "column";
+  wrap.style.alignItems = "center";
+
+  wrap.appendChild(spinner);
+  wrap.appendChild(label);
+  loading.appendChild(wrap);
+  host.appendChild(loading);
+
+  const hideLoading = () => loading.remove();
+  scene.onDisposeObservable.add(() => loading.remove());
+
   MeshBuilder.CreateBox(
     "backgroundCube",
     { size: 60, sideOrientation: Mesh.BACKSIDE },
@@ -83,7 +141,7 @@ export default function createScene(
   hemi.intensity = 0.4;
 
   // ---------------------------------------------------------------------------
-  // HTML UI: toggle transparency by mesh name (absolute top-left)
+  // Transparent toggle helpers
   // ---------------------------------------------------------------------------
   type TransparencyBackup = {
     enabled: boolean;
@@ -144,7 +202,6 @@ export default function createScene(
       return;
     }
 
-    // Important: clone material so we don't affect other meshes sharing it
     ensureUniqueMaterial(mesh);
 
     const mat = mesh.material as Material;
@@ -166,18 +223,14 @@ export default function createScene(
 
     if (backup.enabled) {
       setAlpha(mat, alphaOn);
-
-      // force blending on
       mat.needAlphaBlending = () => true;
       mat.needAlphaTesting = () => false;
 
-      // PBR transparencyMode exists on PBRMaterial; if present, set to ALPHABLEND(2)
       if (getTransparencyMode(mat) !== undefined) {
-        setTransparencyMode(mat, 2);
+        setTransparencyMode(mat, 2); // ALPHABLEND
       }
     } else {
       setAlpha(mat, backup.alpha);
-
       mat.needAlphaBlending = () => backup!.needAlphaBlending;
       mat.needAlphaTesting = () => backup!.needAlphaTesting;
 
@@ -185,8 +238,6 @@ export default function createScene(
         setTransparencyMode(mat, backup.transparencyMode);
       }
     }
-
-    console.log(`Transparency ${backup.enabled ? "ON" : "OFF"}: ${mesh.name}`);
   };
 
   const findMeshByName = (name: string): AbstractMesh | null => {
@@ -203,6 +254,9 @@ export default function createScene(
     );
   };
 
+  // ---------------------------------------------------------------------------
+  // Bottom-right buttons (created now, attached AFTER loading)
+  // ---------------------------------------------------------------------------
   const ensureFontAwesomeLoaded = () => {
     const id = "fa-cdn";
     if (document.getElementById(id)) return;
@@ -214,115 +268,108 @@ export default function createScene(
     document.head.appendChild(link);
   };
 
-  ensureFontAwesomeLoaded();
+  const makeUIButtons = () => {
+    ensureFontAwesomeLoaded();
 
-  const host = canvas.parentElement ?? document.body;
+    const ui = document.createElement("div");
+    ui.style.position = "absolute";
+    ui.style.right = "16px";
+    ui.style.bottom = "16px";
+    ui.style.zIndex = "9999";
+    ui.style.display = "flex";
+    ui.style.flexDirection = "column";
+    ui.style.gap = "10px";
+    ui.style.alignItems = "center";
 
-  // Make sure absolute positioning works: parent must be relative
-  if (host !== document.body) {
-    const cs = window.getComputedStyle(host);
-    if (cs.position === "static") {
-      (host as HTMLElement).style.position = "relative";
-    }
-  }
+    const makeRoundButton = (iconClass: string, title: string) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.title = title;
 
-  const ui = document.createElement("div");
-  ui.style.position = "absolute";
-  ui.style.right = "16px";
-  ui.style.bottom = "16px";
-  ui.style.zIndex = "9999";
-  ui.style.display = "flex";
-  ui.style.flexDirection = "column";
-  ui.style.gap = "10px";
-  ui.style.alignItems = "center";
-
-  const makeRoundButton = (iconClass: string, title: string) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.title = title;
-
-    b.style.width = "52px";
-    b.style.height = "52px";
-    b.style.borderRadius = "999px";
-    b.style.border = "1px solid rgba(255,255,255,0.14)";
-    b.style.background = "rgba(0,0,0,0.70)";
-    b.style.backdropFilter = "blur(8px)";
-    b.style.display = "grid";
-    b.style.placeItems = "center";
-    b.style.cursor = "pointer";
-    b.style.userSelect = "none";
-    b.style.outline = "none";
-
-    // hover effect
-    b.addEventListener("mouseenter", () => {
-      b.style.background = "rgba(0,0,0,0.82)";
-    });
-    b.addEventListener("mouseleave", () => {
+      b.style.width = "52px";
+      b.style.height = "52px";
+      b.style.borderRadius = "999px";
+      b.style.border = "1px solid rgba(255,255,255,0.14)";
       b.style.background = "rgba(0,0,0,0.70)";
+      b.style.backdropFilter = "blur(8px)";
+      b.style.display = "grid";
+      b.style.placeItems = "center";
+      b.style.cursor = "pointer";
+      b.style.userSelect = "none";
+      b.style.outline = "none";
+
+      b.addEventListener("mouseenter", () => {
+        b.style.background = "rgba(0,0,0,0.82)";
+      });
+      b.addEventListener("mouseleave", () => {
+        b.style.background = "rgba(0,0,0,0.70)";
+      });
+
+      const i = document.createElement("i");
+      i.className = iconClass;
+      i.style.color = "white";
+      i.style.fontSize = "18px";
+      i.style.lineHeight = "1";
+      b.appendChild(i);
+
+      return { button: b, icon: i };
+    };
+
+    // X-ray button
+    const { button: xrayBtn } = makeRoundButton(
+      "fa-solid fa-eye",
+      "Toggle Side Panel X-ray",
+    );
+
+    xrayBtn.addEventListener("click", () => {
+      const mesh = findMeshByName("Side Panel");
+      if (mesh) toggleMaterialTransparency(mesh, 0.25);
     });
 
-    const i = document.createElement("i");
-    i.className = iconClass;
-    i.style.color = "white";
-    i.style.fontSize = "18px";
-    i.style.lineHeight = "1";
+    // Play/Pause button
+    let animationsPaused = false;
+    const { button: playPauseBtn, icon: playPauseIcon } = makeRoundButton(
+      "fa-solid fa-pause",
+      "Pause animations",
+    );
 
-    b.appendChild(i);
-    return { button: b, icon: i };
+    const setPlayPauseIcon = () => {
+      if (animationsPaused) {
+        playPauseIcon.className = "fa-solid fa-play";
+        playPauseBtn.title = "Play animations";
+      } else {
+        playPauseIcon.className = "fa-solid fa-pause";
+        playPauseBtn.title = "Pause animations";
+      }
+    };
+
+    const setAnimationsPaused = (paused: boolean) => {
+      animationsPaused = paused;
+      for (const ag of scene.animationGroups) {
+        if (paused) ag.pause();
+        else ag.play(true);
+      }
+      setPlayPauseIcon();
+    };
+
+    playPauseBtn.addEventListener("click", () => {
+      setAnimationsPaused(!animationsPaused);
+    });
+
+    ui.appendChild(playPauseBtn);
+    ui.appendChild(xrayBtn);
+
+    return ui;
   };
 
-  // --- X-ray button (Side Panel transparency toggle)
-  const { button: xrayBtn, icon: xrayIcon } = makeRoundButton(
-    "fa-solid fa-eye", // vaihtoehto: "fa-solid fa-eye" / "fa-solid fa-x-ray"
-    "Toggle Side Panel X-ray",
-  );
+  let buttonsUI: HTMLDivElement | null = null;
 
-  const doXrayToggle = () => {
-    const name = "Side Panel";
-    const mesh = findMeshByName(name);
-    if (mesh) toggleMaterialTransparency(mesh, 0.25);
+  const showButtons = () => {
+    if (buttonsUI) return;
+    buttonsUI = makeUIButtons();
+    host.appendChild(buttonsUI);
+    scene.onDisposeObservable.add(() => buttonsUI?.remove());
   };
-
-  xrayBtn.addEventListener("click", doXrayToggle);
-
-  // --- Play/Pause button (all animationGroups)
-  let animationsPaused = false;
-  const { button: playPauseBtn, icon: playPauseIcon } = makeRoundButton(
-    "fa-solid fa-pause",
-    "Pause animations",
-  );
-
-  const setPlayPauseIcon = () => {
-    if (animationsPaused) {
-      playPauseIcon.className = "fa-solid fa-play";
-      playPauseBtn.title = "Play animations";
-    } else {
-      playPauseIcon.className = "fa-solid fa-pause";
-      playPauseBtn.title = "Pause animations";
-    }
-  };
-
-  const setAnimationsPaused = (paused: boolean) => {
-    animationsPaused = paused;
-    for (const ag of scene.animationGroups) {
-      if (paused) ag.pause();
-      else ag.play(true);
-    }
-    setPlayPauseIcon();
-  };
-
-  playPauseBtn.addEventListener("click", () => {
-    setAnimationsPaused(!animationsPaused);
-  });
-
-  // Add to UI (order: play/pause on top, x-ray below)
-  ui.appendChild(playPauseBtn);
-  ui.appendChild(xrayBtn);
-  host.appendChild(ui);
-
-  scene.onDisposeObservable.add(() => {
-    ui.remove();
-  });
 
   // ---------------------------------------------------------------------------
   // Scene init
@@ -442,6 +489,8 @@ export default function createScene(
       }
     };
 
+    label.textContent = "Loading moving parts…";
+
     // --- LOAD moving parts
     await new Promise<void>((resolve) => {
       SceneLoader.ImportMesh(
@@ -495,13 +544,14 @@ export default function createScene(
 
           for (const ag of animationGroups) ag.start(true);
 
-          // hide named child meshes
           hideChildrenByName(root, HIDDEN_MESH_NAMES);
 
           resolve();
         },
       );
     });
+
+    label.textContent = "Loading static parts…";
 
     // --- LOAD static parts
     const staticFile = "prototype_static_parts.glb";
@@ -529,7 +579,6 @@ export default function createScene(
           m.layerMask = 1;
         }
 
-        // Place to same transform as moving root
         if (movingRoot) {
           matchTransform(movingRoot, root);
         } else {
@@ -545,6 +594,8 @@ export default function createScene(
         resolve();
       });
     });
+
+    label.textContent = "Loading caustics…";
 
     // --- Caustics
     const textureCamera = new ArcRotateCamera(
@@ -629,6 +680,8 @@ export default function createScene(
       textureCamera,
     );
 
+    label.textContent = "Loading environment…";
+
     // --- underwater ground
     await new Promise<void>((resolve) => {
       SceneLoader.ImportMesh(
@@ -682,7 +735,7 @@ export default function createScene(
       controls.detach(scene);
     });
 
-    const turnSpeed = 2.2; // rad/s
+    const turnSpeed = 2.2;
 
     const h = 1.8;
     const r = 0.4;
@@ -806,7 +859,6 @@ export default function createScene(
 
     scene.onBeforeRenderObservable.add(() => {
       const charPos = characterController.getPosition();
-
       const headPos = charPos.add(headLocalOffset);
       const forwardWorld =
         forwardLocalSpace.applyRotationQuaternion(characterOrientation);
@@ -846,8 +898,15 @@ export default function createScene(
       characterController.setVelocity(desiredLinearVelocity);
       characterController.integrate(dt, support, characterGravity);
     });
+
+    // ✅ Done: hide loading + show buttons
+    hideLoading();
+    showButtons();
   })().catch((err: unknown) => {
     console.error("Init failed:", err);
+    hideLoading(); // don't get stuck
+    // optionally: still show buttons so you can try toggles
+    showButtons();
   });
 
   return scene;
