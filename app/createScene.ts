@@ -726,7 +726,7 @@ export default function createScene(
       area: { x: 7.5, z: 7.5 },
       emitY: { min: 0.7, max: 1.6 },
       dustEmitRate: 520,
-      dustCapacity: 12000,
+      dustCapacity: 1200,
       debrisChancePerSecond: 0.15,
       debrisBurstMin: 1,
       debrisBurstMax: 6,
