@@ -16,8 +16,8 @@ import { SpotLight } from "@babylonjs/core/Lights/spotLight";
 import { NodeMaterial } from "@babylonjs/core/Materials/Node/nodeMaterial";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import type { Material } from "@babylonjs/core/Materials/material";
-import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
@@ -428,16 +428,25 @@ export default function createScene(
     slab.position.set(0, slabHeight / 2, 0);
     slab.layerMask = 1;
 
-    const slabMat = new StandardMaterial("slabMat", scene);
-    slabMat.diffuseColor = new Color3(0.45, 0.45, 0.48);
-    slabMat.specularColor = new Color3(0.05, 0.05, 0.05);
-    slab.material = slabMat;
+    const sandMat = new PBRMaterial("slabSand", scene);
+    const sandTex = new Texture("textures/lined-cement.png", scene);
+
+    sandMat.albedoTexture = sandTex;
+    sandMat.metallic = 0.0;
+    sandMat.roughness = 0.95;
+
+    sandTex.uScale = 3.5;
+    sandTex.vScale = 3.5;
+
+    sandMat.albedoColor = new Color3(1.0, 0.98, 0.92);
+
+    slab.material = sandMat;
 
     new PhysicsAggregate(slab, PhysicsShapeType.BOX, { mass: 0 }, scene);
     slab.isPickable = false;
 
     // --- Support slab: another slab on top, tilted 20 degrees as a support
-    const supportLength = 3.2;
+    const supportLength = 3.75;
     const supportWidth = 2;
     const supportHeight = 1.5;
     const supportAngle = Tools.ToRadians(-20);
@@ -449,8 +458,7 @@ export default function createScene(
     );
     supportSlab.layerMask = 1;
 
-    // Use same material as the main slab (or clone if you want)
-    supportSlab.material = slabMat;
+    supportSlab.material = sandMat;
 
     // Make it static + not pickable
     supportSlab.isPickable = false;
@@ -466,7 +474,7 @@ export default function createScene(
     supportSlab.position.set(
       slab.position.x,
       0.8,
-      slab.position.z - slabLength * 0.15, // small offset so it supports the device better
+      slab.position.z - slabLength * 0.12,
     );
 
     // Tilt upward (around X)
@@ -638,6 +646,7 @@ export default function createScene(
     rtt.activeCamera = textureCamera;
     scene.customRenderTargets.push(rtt);
     rtt.renderList?.push(waterPlane);
+
     // --- LOAD flowdiverter
     loading.setText("Loading flow diverter…");
 
@@ -678,9 +687,6 @@ export default function createScene(
             m.layerMask = 1;
           }
 
-          // ✅ EI KALLISTUSTA: ei kosketa root.rotation/rotationQuaternion ollenkaan
-
-          // Sijoitus: sama position + scale kuin movingRoot (mutta EI rotationia)
           if (movingRoot) {
             // copy position + scaling only
             root.position.copyFrom(movingRoot.position);
@@ -711,27 +717,16 @@ export default function createScene(
       );
     });
 
-    // Laitteen etu -> laitteen taakse (valitse +Z tai -Z sen mukaan kumpi on "taakse")
-    const DEVICE_FLOW_DIR = new Vector3(0, 0, -1); // <-- jos väärin päin, vaihda (0,0,-1)
+    const DEVICE_FLOW_DIR = new Vector3(0, 0, -1);
 
     const waterParticles = ParticleHelper.createWaterFlowParticles({
       scene,
       emitter: waterPlane,
-
-      // EI enää cameraan sidottu, vaan laitteen suuntaan
       flowDir: DEVICE_FLOW_DIR,
-
-      // vähän pienempi alue
       area: { x: 7.5, z: 7.5 },
-
-      // edelleen hieman korkeammalla, mutta voi myös laskea jos haluat
       emitY: { min: 0.7, max: 1.6 },
-
-      // hieman vähemmän pölyä
       dustEmitRate: 520,
       dustCapacity: 12000,
-
-      // roskaa harvemmin ja vähemmän
       debrisChancePerSecond: 0.15,
       debrisBurstMin: 1,
       debrisBurstMax: 6,
@@ -796,12 +791,11 @@ export default function createScene(
 
     loading.setText("Loading environment…");
 
-    // --- underwater ground
     await new Promise<void>((resolve) => {
       SceneLoader.ImportMesh(
         "",
-        "https://raw.githubusercontent.com/PirateJC/assets/master/underWaterDemo/ground/",
-        "underwaterGround.glb",
+        "/",
+        "underwaterground.glb",
         scene,
         async (newMeshes) => {
           for (const m of newMeshes) m.layerMask = 1;
@@ -871,7 +865,6 @@ export default function createScene(
 
     camera.setTarget(characterPosition);
 
-    // ✅ PointerController käyttöön (drag yaw + click-to-move)
     const pointer = new PointerController(scene, characterController, controls);
     scene.onDisposeObservable.add(() => pointer.dispose());
 
