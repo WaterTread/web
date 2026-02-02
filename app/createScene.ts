@@ -666,9 +666,9 @@ export default function createScene(
 
           // Material (optional). Poista jos haluat käyttää GLB:n omia materiaaleja.
           const diverterMat = new PBRMaterial("flowDiverterMat", scene);
-          diverterMat.albedoColor = new Color3(0.25, 0.25, 0.28);
+          diverterMat.albedoColor = new Color3(1, 1, 1);
           diverterMat.metallic = 0.0;
-          diverterMat.roughness = 0.7;
+          diverterMat.roughness = 0.8;
 
           const renderMeshes = root.getChildMeshes(true) as AbstractMesh[];
           for (const m of renderMeshes) {
