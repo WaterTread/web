@@ -280,15 +280,35 @@ export default function createScene(
     };
 
     // X-ray
-    const { button: xrayBtn } = makeRoundButton(
-      "fa-solid fa-glasses",
-      "Toggle Side Panel X-ray",
+    let xrayEnabled = false;
+
+    const { button: xrayBtn, icon: xrayIcon } = makeRoundButton(
+      "fa-solid fa-eye", // default when OFF
+      "Enable Side Panel X-ray",
     );
+
+    const setXrayIcon = () => {
+      if (xrayEnabled) {
+        xrayIcon.className = "fa-solid fa-eye";
+        xrayBtn.title = "Disable Side Panel X-ray";
+      } else {
+        xrayIcon.className = "fa-solid fa-eye-low-vision";
+        xrayBtn.title = "Enable Side Panel X-ray";
+      }
+    };
+
     xrayBtn.addEventListener("click", () => {
       const mesh = findMeshByName("Side Panel");
-      if (mesh) toggleMaterialTransparency(mesh, 0.25);
+      if (mesh) {
+        toggleMaterialTransparency(mesh, 0.25);
+        xrayEnabled = !xrayEnabled;
+        setXrayIcon();
+      }
       focusCanvas();
     });
+
+    // initial
+    setXrayIcon();
 
     // Play/Pause
     let animationsPaused = false;
