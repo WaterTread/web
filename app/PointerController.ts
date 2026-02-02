@@ -5,6 +5,8 @@ import {
   type Nullable,
   type PickingInfo,
 } from "@babylonjs/core";
+import type { PointerInfo } from "@babylonjs/core/Events/pointerEvents";
+import type { Observer } from "@babylonjs/core/Misc/observable";
 import type { PhysicsCharacterController } from "@babylonjs/core/Physics/v2/characterController";
 import type { CharacterControls } from "./CharacterControls";
 
@@ -18,26 +20,31 @@ export class PointerController {
 
   private readonly dragThresholdPxMouse = 3;
   private readonly dragThresholdPxTouch = 10;
-  private readonly yawSpeed = 0.003; // rad/pixel
+  private readonly rotationSpeed = 0.015; // rad/pixel (drag -> angular velocity)
+  private readonly pitchSpeed = 0.0025; // rad/pixel
+  private readonly maxPitch = 0.8; // radians
   private readonly stopDistance = 0.35; // meters
   private readonly clickToMoveStrength = 0.5; // 0..1
+  private readonly slowRadius = 1.2; // meters
   private readonly turnSpeed = 4.0; // rad/sec
   private readonly stuckEpsilon = 0.05; // meters
   private readonly stuckTimeoutMs = 600;
+  private readonly yawDamping = 10.0; // 1/sec
 
   private isPointerDown = false;
   private isDragging = false;
   private pointerDownPos: Vec2 = { x: 0, y: 0 };
   private prevPos: Vec2 = { x: 0, y: 0 };
+  private maxDragDistance = 0;
 
   private targetPoint: Vector3 | null = null;
   private activePointerId: number | null = null;
   private activePointerType: "mouse" | "touch" | "pen" | null = null;
   private lastDistance: number | null = null;
   private lastDistanceTimeMs = 0;
+  private yawVelocity = 0;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private pointerObserver: any;
+  private pointerObserver: Observer<PointerInfo> | null = null;
 
   constructor(
     scene: Scene,
@@ -55,9 +62,7 @@ export class PointerController {
 
   dispose(): void {
     if (this.pointerObserver) {
-      // Babylonin Observer-tyyppi vaihtelee versioittain, joten poistetaan näin.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.scene.onPointerObservable as any).remove(this.pointerObserver);
+      this.scene.onPointerObservable.remove(this.pointerObserver);
       this.pointerObserver = null;
     }
   }
@@ -86,9 +91,10 @@ export class PointerController {
 
     this.pointerDownPos = { x: event.clientX, y: event.clientY };
     this.prevPos = { x: event.clientX, y: event.clientY };
+    this.maxDragDistance = 0;
     this.activePointerId = event.pointerId;
-    this.activePointerType = (event.pointerType as "mouse" | "touch" | "pen") ??
-      "mouse";
+    this.activePointerType =
+      (event.pointerType as "mouse" | "touch" | "pen") ?? "mouse";
 
     if (this.canvas && this.canvas.setPointerCapture) {
       this.canvas.setPointerCapture(event.pointerId);
@@ -98,18 +104,27 @@ export class PointerController {
       event.preventDefault();
     }
 
+    this.getCursorHost().classList.add("pointer");
     this.focusCanvas();
   }
 
   private onPointerMove(event: PointerEvent): void {
-    if (!this.isPointerDown) return;
+    if (!this.isPointerDown) {
+      if (event.pointerType === "mouse") {
+        const pick = this.scene.pick(event.clientX, event.clientY);
+        this.pointerHoverCursorHandling(pick);
+      }
+      return;
+    }
     if (this.activePointerId !== event.pointerId) return;
 
     const dx = event.clientX - this.prevPos.x;
+    const dy = event.clientY - this.prevPos.y;
 
     const totalDx = event.clientX - this.pointerDownPos.x;
     const totalDy = event.clientY - this.pointerDownPos.y;
     const dist = Math.hypot(totalDx, totalDy);
+    if (dist > this.maxDragDistance) this.maxDragDistance = dist;
 
     const threshold =
       this.activePointerType === "touch"
@@ -119,8 +134,17 @@ export class PointerController {
 
     // Drag = yaw rotate
     if (this.isDragging) {
-      this.controls.yaw += dx * this.yawSpeed;
+      this.yawVelocity = -dx * this.rotationSpeed;
+      const body = this.getCharacterBody();
+      if (body) {
+        body.setAngularDamping(this.yawDamping);
+        body.setAngularVelocity(new Vector3(0, this.yawVelocity, 0));
+      }
+      this.controls.pitch = this.clampPitch(
+        this.controls.pitch - dy * this.pitchSpeed,
+      );
       this.targetPoint = null;
+      this.pointerDownCursorHandling(event);
     }
 
     this.prevPos = { x: event.clientX, y: event.clientY };
@@ -146,12 +170,13 @@ export class PointerController {
       this.activePointerType === "touch"
         ? this.dragThresholdPxTouch
         : this.dragThresholdPxMouse;
-    if (dist <= threshold) {
+    if (!this.isDragging && this.maxDragDistance <= threshold) {
       const pick = this.scene.pick(event.clientX, event.clientY);
       this.handleClick(pick);
     }
 
     this.isDragging = false;
+    this.getCursorHost().classList.remove("pointer", "grabbing");
     if (this.canvas && this.canvas.releasePointerCapture) {
       this.canvas.releasePointerCapture(event.pointerId);
     }
@@ -178,8 +203,21 @@ export class PointerController {
 
   private installUpdateLoop(): void {
     this.scene.onBeforeRenderObservable.add(() => {
+      const dt = (this.scene.deltaTime ?? 0) / 1000;
+      this.updateYawInertia(dt);
       this.stepClickToMove();
     });
+  }
+
+  private updateYawInertia(dt: number): void {
+    if (dt <= 0) return;
+    if (this.targetPoint) return; // click-to-move controls yaw
+
+    this.controls.yaw += this.yawVelocity * dt;
+
+    const decay = Math.max(0, 1 - this.yawDamping * dt);
+    this.yawVelocity *= decay;
+    if (Math.abs(this.yawVelocity) < 0.0001) this.yawVelocity = 0;
   }
 
   private stepClickToMove(): void {
@@ -204,6 +242,9 @@ export class PointerController {
     const desiredYaw = Math.atan2(to.x, to.z);
     const dt = (this.scene.deltaTime ?? 0) / 1000;
     if (dt > 0) {
+      this.yawVelocity = 0;
+      const body = this.getCharacterBody();
+      if (body) body.setAngularVelocity(Vector3.Zero());
       const cur = this.controls.yaw;
       const next = this.lerpAngle(cur, desiredYaw, this.turnSpeed * dt);
       this.controls.yaw = next;
@@ -236,12 +277,90 @@ export class PointerController {
 
     const len = this.controls.inputDirection.length();
     if (len > 0) {
-      this.controls.inputDirection.scaleInPlace(this.clickToMoveStrength / len);
+      const slowFactor = Math.min(1, dist / this.slowRadius);
+      const strength = this.clickToMoveStrength * slowFactor;
+      this.controls.inputDirection.scaleInPlace(strength / len);
     }
   }
 
   private focusCanvas(): void {
     window.setTimeout(() => this.canvas?.focus(), 0);
+  }
+
+  private getCharacterBody(): {
+    setAngularVelocity: (v: Vector3) => void;
+    setAngularDamping: (v: number) => void;
+  } | null {
+    type AngularBody = {
+      setAngularVelocity?: (v: Vector3) => void;
+      setAngularDamping?: (v: number) => void;
+      body?: {
+        setAngularVelocity?: (v: Vector3) => void;
+        setAngularDamping?: (v: number) => void;
+      };
+    };
+
+    const hasAngular = (
+      v: AngularBody | undefined,
+    ): v is {
+      setAngularVelocity: (v: Vector3) => void;
+      setAngularDamping: (v: number) => void;
+    } => {
+      return (
+        typeof v?.setAngularVelocity === "function" &&
+        typeof v?.setAngularDamping === "function"
+      );
+    };
+
+    const candidate = this.character as unknown as {
+      _body?: AngularBody;
+    };
+
+    const body = candidate._body;
+    if (hasAngular(body)) return body;
+    if (hasAngular(body?.body)) return body.body;
+    return null;
+  }
+
+  private getCursorHost(): HTMLElement {
+    return document.body;
+  }
+
+  private pointerHoverCursorHandling(pick: PickingInfo | null): void {
+    this.getCursorHost().classList.remove("crosshair", "pointer");
+    if (!pick?.hit || !pick.pickedMesh) return;
+
+    const name = pick.pickedMesh.name;
+    if (name.startsWith("sphere")) {
+      this.getCursorHost().classList.add("crosshair");
+    } else if (name.startsWith("npc")) {
+      this.getCursorHost().classList.add("pointer");
+    }
+  }
+
+  private pointerDownCursorHandling(event: PointerEvent): void {
+    const moveX = event.clientX - this.pointerDownPos.x;
+    const moveY = event.clientY - this.pointerDownPos.y;
+    const distance = Math.hypot(moveX, moveY);
+
+    const threshold =
+      this.activePointerType === "touch"
+        ? this.dragThresholdPxTouch
+        : this.dragThresholdPxMouse;
+    if (distance > threshold) {
+      this.isDragging = true;
+      this.getCursorHost().classList.add("grabbing");
+      this.getCursorHost().classList.remove("pointer");
+    } else {
+      this.getCursorHost().classList.remove("grabbing");
+      this.getCursorHost().classList.add("pointer");
+    }
+  }
+
+  private clampPitch(v: number): number {
+    if (v > this.maxPitch) return this.maxPitch;
+    if (v < -this.maxPitch) return -this.maxPitch;
+    return v;
   }
 
   private lerpAngle(current: number, target: number, t: number): number {

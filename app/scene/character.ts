@@ -159,18 +159,21 @@ export const setupCharacter = (
 
   const headLocalOffset = new Vector3(0, h * 0.45, 0);
   const lookAhead = 1.0;
-  const lookDownFactor = 0.2;
 
   scene.onBeforeRenderObservable.add(() => {
     const charPos = characterController.getPosition();
     const headPos = charPos.add(headLocalOffset);
-    const forwardWorld =
-      forwardLocalSpace.applyRotationQuaternion(characterOrientation);
+    const yaw = controls.yaw;
+    const pitch = controls.pitch;
+    const forwardWorld = new Vector3(
+      Math.sin(yaw) * Math.cos(pitch),
+      Math.sin(pitch),
+      Math.cos(yaw) * Math.cos(pitch),
+    );
 
     camera.position.copyFrom(headPos);
 
     const target = headPos.add(forwardWorld.scale(lookAhead));
-    target.y -= lookAhead * lookDownFactor;
 
     camera.setTarget(target);
   });
@@ -190,7 +193,8 @@ export const setupCharacter = (
     controls.stepTurn(dt, turnSpeed);
 
     Quaternion.FromEulerAnglesToRef(0, controls.yaw, 0, characterOrientation);
-    camera.rotation.y = controls.yaw;
+      camera.rotation.y = controls.yaw;
+      camera.rotation.x = controls.pitch;
 
     const desiredLinearVelocity = getDesiredVelocity(
       dt,
