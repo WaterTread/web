@@ -16,10 +16,14 @@ export class PointerController {
   private readonly controls: CharacterControls;
   private readonly canvas: Nullable<HTMLCanvasElement>;
 
-  private readonly dragThresholdPx = 3;
-  private readonly yawSpeed = 0.004; // rad/pixel
+  private readonly dragThresholdPxMouse = 3;
+  private readonly dragThresholdPxTouch = 10;
+  private readonly yawSpeed = 0.003; // rad/pixel
   private readonly stopDistance = 0.35; // meters
-  private readonly clickToMoveStrength = 1.0; // 0..1
+  private readonly clickToMoveStrength = 0.5; // 0..1
+  private readonly turnSpeed = 4.0; // rad/sec
+  private readonly stuckEpsilon = 0.05; // meters
+  private readonly stuckTimeoutMs = 600;
 
   private isPointerDown = false;
   private isDragging = false;
@@ -27,6 +31,10 @@ export class PointerController {
   private prevPos: Vec2 = { x: 0, y: 0 };
 
   private targetPoint: Vector3 | null = null;
+  private activePointerId: number | null = null;
+  private activePointerType: "mouse" | "touch" | "pen" | null = null;
+  private lastDistance: number | null = null;
+  private lastDistanceTimeMs = 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private pointerObserver: any;
@@ -71,17 +79,31 @@ export class PointerController {
   }
 
   private onPointerDown(event: PointerEvent): void {
+    if (this.activePointerId !== null) return;
+
     this.isPointerDown = true;
     this.isDragging = false;
 
     this.pointerDownPos = { x: event.clientX, y: event.clientY };
     this.prevPos = { x: event.clientX, y: event.clientY };
+    this.activePointerId = event.pointerId;
+    this.activePointerType = (event.pointerType as "mouse" | "touch" | "pen") ??
+      "mouse";
+
+    if (this.canvas && this.canvas.setPointerCapture) {
+      this.canvas.setPointerCapture(event.pointerId);
+    }
+
+    if (event.pointerType === "touch") {
+      event.preventDefault();
+    }
 
     this.focusCanvas();
   }
 
   private onPointerMove(event: PointerEvent): void {
     if (!this.isPointerDown) return;
+    if (this.activePointerId !== event.pointerId) return;
 
     const dx = event.clientX - this.prevPos.x;
 
@@ -89,17 +111,28 @@ export class PointerController {
     const totalDy = event.clientY - this.pointerDownPos.y;
     const dist = Math.hypot(totalDx, totalDy);
 
-    if (dist > this.dragThresholdPx) this.isDragging = true;
+    const threshold =
+      this.activePointerType === "touch"
+        ? this.dragThresholdPxTouch
+        : this.dragThresholdPxMouse;
+    if (dist > threshold) this.isDragging = true;
 
     // Drag = yaw rotate
     if (this.isDragging) {
       this.controls.yaw += dx * this.yawSpeed;
+      this.targetPoint = null;
     }
 
     this.prevPos = { x: event.clientX, y: event.clientY };
+
+    if (event.pointerType === "touch") {
+      event.preventDefault();
+    }
   }
 
   private onPointerUp(event: PointerEvent): void {
+    if (this.activePointerId !== event.pointerId) return;
+
     const upPos = { x: event.clientX, y: event.clientY };
     const dist = Math.hypot(
       upPos.x - this.pointerDownPos.x,
@@ -109,12 +142,25 @@ export class PointerController {
     this.isPointerDown = false;
 
     // Click = click-to-move
-    if (dist <= this.dragThresholdPx) {
+    const threshold =
+      this.activePointerType === "touch"
+        ? this.dragThresholdPxTouch
+        : this.dragThresholdPxMouse;
+    if (dist <= threshold) {
       const pick = this.scene.pick(event.clientX, event.clientY);
       this.handleClick(pick);
     }
 
     this.isDragging = false;
+    if (this.canvas && this.canvas.releasePointerCapture) {
+      this.canvas.releasePointerCapture(event.pointerId);
+    }
+    this.activePointerId = null;
+    this.activePointerType = null;
+
+    if (event.pointerType === "touch") {
+      event.preventDefault();
+    }
     this.focusCanvas();
   }
 
@@ -126,6 +172,8 @@ export class PointerController {
     if (n.includes("Side Panel")) return;
 
     this.targetPoint = pick.pickedPoint.clone();
+    this.lastDistance = null;
+    this.lastDistanceTimeMs = performance.now();
   }
 
   private installUpdateLoop(): void {
@@ -145,11 +193,36 @@ export class PointerController {
     const dist = to.length();
     if (dist < this.stopDistance) {
       this.targetPoint = null;
+      this.lastDistance = null;
       this.controls.inputDirection.set(0, 0, 0);
       return;
     }
 
     to.normalize();
+
+    // Smoothly rotate toward target
+    const desiredYaw = Math.atan2(to.x, to.z);
+    const dt = (this.scene.deltaTime ?? 0) / 1000;
+    if (dt > 0) {
+      const cur = this.controls.yaw;
+      const next = this.lerpAngle(cur, desiredYaw, this.turnSpeed * dt);
+      this.controls.yaw = next;
+    }
+
+    // Stop trying if we're not getting closer (likely collision/obstacle)
+    const now = performance.now();
+    if (this.lastDistance === null) {
+      this.lastDistance = dist;
+      this.lastDistanceTimeMs = now;
+    } else if (dist < this.lastDistance - this.stuckEpsilon) {
+      this.lastDistance = dist;
+      this.lastDistanceTimeMs = now;
+    } else if (now - this.lastDistanceTimeMs > this.stuckTimeoutMs) {
+      this.targetPoint = null;
+      this.lastDistance = null;
+      this.controls.inputDirection.set(0, 0, 0);
+      return;
+    }
 
     // World dir -> local dir (inverse yaw)
     const yaw = this.controls.yaw;
@@ -169,5 +242,18 @@ export class PointerController {
 
   private focusCanvas(): void {
     window.setTimeout(() => this.canvas?.focus(), 0);
+  }
+
+  private lerpAngle(current: number, target: number, t: number): number {
+    const a = this.wrapAngle(target - current);
+    const clamped = Math.min(Math.max(t, 0), 1);
+    return current + a * clamped;
+  }
+
+  private wrapAngle(angle: number): number {
+    let a = angle;
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
   }
 }

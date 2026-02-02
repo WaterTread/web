@@ -15,6 +15,7 @@ export const setupSceneBasics = (
 ): SceneBasics => {
   canvas.tabIndex = 1;
   canvas.style.outline = "none";
+  canvas.style.touchAction = "none";
 
   MeshBuilder.CreateBox(
     "backgroundCube",
