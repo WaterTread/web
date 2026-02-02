@@ -103,6 +103,8 @@ export class ParticleHelper {
       ps.direction2 = flow.add(new Vector3(+spread, +0.06, +spread));
     };
 
+    const SPEED_MUL = 1.5;
+
     // ---------------------------
     // A) jatkuvat "pölyhiukkaset"
     // ---------------------------
@@ -117,9 +119,9 @@ export class ParticleHelper {
 
     applyDirections(dust, getFlow(), 0.28);
 
-    dust.minEmitPower = 0.3;
-    dust.maxEmitPower = 0.75;
-    dust.updateSpeed = 0.01;
+    dust.minEmitPower = 0.3 * SPEED_MUL;
+    dust.maxEmitPower = 0.75 * SPEED_MUL;
+    dust.updateSpeed = 0.01 * SPEED_MUL;
 
     dust.minLifeTime = 3.2;
     dust.maxLifeTime = 7.8;
@@ -152,9 +154,9 @@ export class ParticleHelper {
 
     applyDirections(debris, getFlow(), 0.18);
 
-    debris.minEmitPower = 0.75;
-    debris.maxEmitPower = 1.3;
-    debris.updateSpeed = 0.011;
+    debris.minEmitPower = 0.75 * SPEED_MUL;
+    debris.maxEmitPower = 1.3 * SPEED_MUL;
+    debris.updateSpeed = 0.011 * SPEED_MUL;
 
     debris.minLifeTime = 2.2;
     debris.maxLifeTime = 5.6;
