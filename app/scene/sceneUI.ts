@@ -113,24 +113,12 @@ const findMeshByName = (scene: Scene, name: string): AbstractMesh | null => {
   );
 };
 
-const ensureFontAwesomeLoaded = () => {
-  const id = "fa-cdn";
-  if (document.getElementById(id)) return;
-  const link = document.createElement("link");
-  link.id = id;
-  link.rel = "stylesheet";
-  link.href =
-    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css";
-  document.head.appendChild(link);
-};
-
 export const createButtonsUI = (options: {
   scene: Scene;
   host: HTMLElement;
   canvas: HTMLCanvasElement;
 }) => {
   const { scene, host, canvas } = options;
-  ensureFontAwesomeLoaded();
 
   // ensure host positioning
   if (host !== document.body) {

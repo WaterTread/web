@@ -126,29 +126,83 @@ export class LoadingOverlay {
     keys.appendChild(keyCell("2", "2", "S", "▼"));
     keys.appendChild(keyCell("3", "2", "D", "▶"));
 
-    const help = document.createElement("div");
-    help.style.display = "flex";
-    help.style.flexDirection = "column";
-    help.style.gap = "6px";
-    help.style.color = "rgba(255,255,255,0.9)";
-    help.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    help.style.fontSize = "12px";
-    help.style.lineHeight = "1.2";
-    help.style.userSelect = "none";
+    const iconRow = document.createElement("div");
+    iconRow.style.display = "flex";
+    iconRow.style.gap = "8px";
+    iconRow.style.alignItems = "center";
+    iconRow.style.justifyContent = "center";
+
+    const iconTile = (iconClass: string) => {
+      const k = document.createElement("div");
+      k.style.width = "34px";
+      k.style.height = "34px";
+      k.style.borderRadius = "8px";
+      k.style.display = "grid";
+      k.style.placeItems = "center";
+      k.style.background = "rgba(255,255,255,0.06)";
+      k.style.border = "1px solid rgba(255,255,255,0.18)";
+      k.style.userSelect = "none";
+
+      const i = document.createElement("i");
+      i.className = iconClass;
+      i.style.fontSize = "13px";
+      i.style.color = "rgba(255,255,255,0.95)";
+      k.appendChild(i);
+      return k;
+    };
+
+    iconRow.appendChild(iconTile("fa-solid fa-computer-mouse"));
+    iconRow.appendChild(iconTile("fa-solid fa-hand-pointer"));
+
+    const helpKeyboard = document.createElement("div");
+    helpKeyboard.style.display = "flex";
+    helpKeyboard.style.flexDirection = "column";
+    helpKeyboard.style.gap = "6px";
+    helpKeyboard.style.alignItems = "center";
+    helpKeyboard.style.color = "rgba(255,255,255,0.9)";
+    helpKeyboard.style.fontFamily =
+      "system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    helpKeyboard.style.fontSize = "12px";
+    helpKeyboard.style.lineHeight = "1.2";
+    helpKeyboard.style.userSelect = "none";
+    helpKeyboard.style.textAlign = "center";
+
+    const helpMouse = document.createElement("div");
+    helpMouse.style.display = "flex";
+    helpMouse.style.flexDirection = "column";
+    helpMouse.style.gap = "6px";
+    helpMouse.style.alignItems = "center";
+    helpMouse.style.color = "rgba(255,255,255,0.9)";
+    helpMouse.style.fontFamily =
+      "system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    helpMouse.style.fontSize = "12px";
+    helpMouse.style.lineHeight = "1.2";
+    helpMouse.style.userSelect = "none";
+    helpMouse.style.textAlign = "center";
 
     const line1 = document.createElement("div");
     line1.textContent = "Move: WASD or Arrow keys";
     const line2 = document.createElement("div");
-    line2.textContent = "Drag: rotate · Click: move";
+    line2.textContent = "Drag horizontal: rotate view";
     const line3 = document.createElement("div");
-    line3.textContent = "Pinch (trackpad): forward/back";
+    line3.textContent = "Point: move to location";
+    const line4 = document.createElement("div");
+    line4.textContent = "Pinch in: move forward";
+    const line5 = document.createElement("div");
+    line5.textContent = "Pinch out: move backward";
 
-    help.appendChild(line1);
-    help.appendChild(line2);
-    help.appendChild(line3);
-
+    helpKeyboard.appendChild(line1);
+    desktopWrap.style.flexDirection = "column";
+    desktopWrap.style.alignItems = "center";
     desktopWrap.appendChild(keys);
-    desktopWrap.appendChild(help);
+    helpMouse.appendChild(line2);
+    helpMouse.appendChild(line3);
+    helpMouse.appendChild(line4);
+    helpMouse.appendChild(line5);
+
+    desktopWrap.appendChild(helpKeyboard);
+    desktopWrap.appendChild(iconRow);
+    desktopWrap.appendChild(helpMouse);
 
     const touchHelp = document.createElement("div");
     touchHelp.className = "loading-overlay__touch";
@@ -164,9 +218,9 @@ export class LoadingOverlay {
     touchHelp.style.textAlign = "center";
 
     const t1 = document.createElement("div");
-    t1.textContent = "Horizontal Drag: rotate";
+    t1.textContent = "Drag horizontal: rotate view";
     const t2 = document.createElement("div");
-    t2.textContent = "Tap: move to location";
+    t2.textContent = "Point: move to location";
     const t3 = document.createElement("div");
     t3.textContent = "Pinch in: move forward";
     const t4 = document.createElement("div");
