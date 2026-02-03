@@ -1,13 +1,13 @@
 import { Color3 } from "@babylonjs/core";
-import type { Scene } from "@babylonjs/core/scene";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
+import { NodeMaterial } from "@babylonjs/core/Materials/Node/nodeMaterial";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import { PhysicsAggregate } from "@babylonjs/core/Physics/v2/physicsAggregate";
-import { PhysicsShapeType } from "@babylonjs/core/Physics/v2/IPhysicsEnginePlugin";
-import { Tools } from "@babylonjs/core/Misc/tools";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
-import { NodeMaterial } from "@babylonjs/core/Materials/Node/nodeMaterial";
+import { Tools } from "@babylonjs/core/Misc/tools";
+import { PhysicsShapeType } from "@babylonjs/core/Physics/v2/IPhysicsEnginePlugin";
+import { PhysicsAggregate } from "@babylonjs/core/Physics/v2/physicsAggregate";
+import type { Scene } from "@babylonjs/core/scene";
 
 const PROTO_ROOT_URL = "/";
 
@@ -223,7 +223,6 @@ export const loadFlowDiverter = async (options: {
         for (const cm of renderMeshes) {
           if (!cm.getTotalVertices || cm.getTotalVertices() === 0) continue;
           new PhysicsAggregate(cm, PhysicsShapeType.MESH, { mass: 0 }, scene);
-          cm.isPickable = false;
         }
 
         resolve();
@@ -261,7 +260,6 @@ export const loadEnvironment = async (scene: Scene) => {
         for (const cm of colliders) {
           if (!cm.getTotalVertices || cm.getTotalVertices() === 0) continue;
           new PhysicsAggregate(cm, PhysicsShapeType.MESH, { mass: 0 }, scene);
-          cm.isPickable = false;
         }
 
         resolve();

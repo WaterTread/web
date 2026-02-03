@@ -111,7 +111,6 @@ export const initPhysicsAndSlabs = async (scene: Scene): Promise<SlabInfo> => {
   slab.material = sandMat;
 
   new PhysicsAggregate(slab, PhysicsShapeType.BOX, { mass: 0 }, scene);
-  slab.isPickable = false;
 
   // --- Support slab: another slab on top, tilted 20 degrees as a support
   const supportLength = 3.75;
@@ -129,7 +128,6 @@ export const initPhysicsAndSlabs = async (scene: Scene): Promise<SlabInfo> => {
   supportSlab.material = sandMat;
 
   // Make it static + not pickable
-  supportSlab.isPickable = false;
   new PhysicsAggregate(supportSlab, PhysicsShapeType.BOX, { mass: 0 }, scene);
 
   // Pivot at the "bottom-back" edge so it tilts like a ramp resting on slab
