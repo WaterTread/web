@@ -360,8 +360,8 @@ export class PointerController {
     const delta = distance - this.pinchLastDistance;
     if (Math.abs(delta) < this.pinchDeadzonePx) return;
 
-    // pinch in => forward, pinch out => backward
-    const dirSign = delta < 0 ? 1 : -1;
+    // pinch in => backward, pinch out => forward
+    const dirSign = delta < 0 ? -1 : 1;
     const forward = this.player.mesh.getDirection(Axis.Z);
     const desired = forward.scale(this.pinchSpeed * dirSign);
     const currentY = this.player.aggregate.body.getLinearVelocity().y;
