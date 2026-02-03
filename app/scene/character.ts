@@ -1,211 +1,85 @@
+import { Axis } from "@babylonjs/core/Maths/math.axis";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Scene } from "@babylonjs/core/scene";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import { PhysicsAggregate } from "@babylonjs/core/Physics/v2/physicsAggregate";
 import {
-  CharacterSupportedState,
-  PhysicsCharacterController,
-} from "@babylonjs/core/Physics/v2/characterController";
+  PhysicsMotionType,
+  PhysicsShapeType,
+} from "@babylonjs/core/Physics/v2/IPhysicsEnginePlugin";
 import type { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
-import { CharacterControls } from "../CharacterControls";
-import { PointerController } from "../PointerController";
+import { KeyboardController } from "../KeyboardController";
+import { PointerController, type RigidPlayer } from "../PointerController";
 
 export type CharacterSetup = {
-  controls: CharacterControls;
-  controller: PhysicsCharacterController;
+  player: RigidPlayer;
 };
-
-type CharState = "IN_AIR" | "ON_GROUND" | "START_JUMP";
 
 export const setupCharacter = (
   scene: Scene,
-  canvas: HTMLCanvasElement,
+  _canvas: HTMLCanvasElement,
   camera: FreeCamera,
 ): CharacterSetup => {
-  // --- Player/Character state
-  let state: CharState = "IN_AIR";
-  const inAirSpeed = 8.0;
-  const onGroundSpeed = 10.0;
-  const jumpHeight = 1.5;
-
-  const forwardLocalSpace = new Vector3(0, 0, 1);
-  const characterOrientation = Quaternion.Identity();
-  const characterGravity = new Vector3(0, -18, 0);
-
-  const controls = new CharacterControls();
-  controls.attach(scene, canvas);
-  scene.onDisposeObservable.add(() => {
-    controls.detach(scene);
-  });
-
-  const turnSpeed = 2.2;
-
   const h = 1.8;
   const r = 0.4;
 
-  const displayCapsule = MeshBuilder.CreateCapsule(
-    "CharacterDisplay",
+  const body = MeshBuilder.CreateCapsule(
+    "CharacterBody",
     { height: h, radius: r },
     scene,
   );
-  displayCapsule.layerMask = 1;
-  displayCapsule.isVisible = false;
+  body.layerMask = 1;
+  body.isVisible = false;
+  body.checkCollisions = true;
 
-  const characterPosition = new Vector3(-2, 3.0, 5.0);
-  const characterController = new PhysicsCharacterController(
-    characterPosition,
-    { capsuleHeight: h, capsuleRadius: r },
+  body.position = new Vector3(-2, 3.0, 5.0);
+  const toOrigin = Vector3.Zero().subtract(body.position);
+  toOrigin.y = 0;
+  const yawToOrigin =
+    toOrigin.lengthSquared() > 0
+      ? Math.atan2(toOrigin.x, toOrigin.z)
+      : 0;
+  const initialRotation = Quaternion.FromEulerAngles(0, yawToOrigin, 0);
+  body.rotationQuaternion = initialRotation;
+
+  const aggregate = new PhysicsAggregate(
+    body,
+    PhysicsShapeType.CAPSULE,
+    { mass: 1, restitution: 0.15, friction: 0.5 },
     scene,
   );
+  aggregate.body.setTargetTransform(body.position, initialRotation);
+  aggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
+  aggregate.body.setMassProperties({
+    inertia: new Vector3(0, 0, 0),
+  });
+  aggregate.body.setAngularDamping(500);
+  aggregate.body.setLinearDamping(0.2);
 
-  camera.setTarget(characterPosition);
+  // Face inward initially (quaternion-based)
 
-  const pointer = new PointerController(scene, characterController, controls);
+  camera.setTarget(body.position);
+
+  const player: RigidPlayer = { mesh: body, aggregate };
+  const pointer = new PointerController(scene, player);
+  const keyboard = new KeyboardController(player, scene);
   scene.onDisposeObservable.add(() => pointer.dispose());
-
-  const getNextState = (
-    supportInfo: ReturnType<PhysicsCharacterController["checkSupport"]>,
-  ): CharState => {
-    if (state === "IN_AIR") {
-      if (supportInfo.supportedState === CharacterSupportedState.SUPPORTED) {
-        return "ON_GROUND";
-      }
-      return "IN_AIR";
-    }
-
-    if (state === "ON_GROUND") {
-      if (supportInfo.supportedState !== CharacterSupportedState.SUPPORTED) {
-        return "IN_AIR";
-      }
-      if (controls.wantJump) return "START_JUMP";
-      return "ON_GROUND";
-    }
-
-    return "IN_AIR";
-  };
-
-  const getDesiredVelocity = (
-    deltaTime: number,
-    supportInfo: ReturnType<PhysicsCharacterController["checkSupport"]>,
-    orientation: Quaternion,
-    currentVelocity: Vector3,
-  ): Vector3 => {
-    const nextState = getNextState(supportInfo);
-    if (nextState !== state) state = nextState;
-
-    const upWorld = characterGravity.normalizeToNew().scaleInPlace(-1.0);
-    const forwardWorld =
-      forwardLocalSpace.applyRotationQuaternion(orientation);
-
-    if (state === "IN_AIR") {
-      const desiredVelocity = controls.inputDirection
-        .scale(inAirSpeed)
-        .applyRotationQuaternion(orientation);
-
-      const outputVelocity = characterController.calculateMovement(
-        deltaTime,
-        forwardWorld,
-        upWorld,
-        currentVelocity,
-        Vector3.ZeroReadOnly,
-        desiredVelocity,
-        upWorld,
-      );
-
-      outputVelocity.addInPlace(upWorld.scale(-outputVelocity.dot(upWorld)));
-      outputVelocity.addInPlace(upWorld.scale(currentVelocity.dot(upWorld)));
-      outputVelocity.addInPlace(characterGravity.scale(deltaTime));
-      return outputVelocity;
-    }
-
-    if (state === "ON_GROUND") {
-      const desiredVelocity = controls.inputDirection
-        .scale(onGroundSpeed)
-        .applyRotationQuaternion(orientation);
-
-      const outputVelocity = characterController.calculateMovement(
-        deltaTime,
-        forwardWorld,
-        supportInfo.averageSurfaceNormal,
-        currentVelocity,
-        supportInfo.averageSurfaceVelocity,
-        desiredVelocity,
-        upWorld,
-      );
-
-      outputVelocity.subtractInPlace(supportInfo.averageSurfaceVelocity);
-
-      const inv1k = 1e-3;
-      if (outputVelocity.dot(upWorld) > inv1k) {
-        const velLen = outputVelocity.length();
-        outputVelocity.normalizeFromLength(velLen);
-
-        const horizLen = velLen / supportInfo.averageSurfaceNormal.dot(upWorld);
-
-        const c = supportInfo.averageSurfaceNormal.cross(outputVelocity);
-        const reprojected = c.cross(upWorld);
-        reprojected.scaleInPlace(horizLen);
-
-        outputVelocity.copyFrom(reprojected);
-      }
-
-      outputVelocity.addInPlace(supportInfo.averageSurfaceVelocity);
-      return outputVelocity;
-    }
-
-    const u = Math.sqrt(2 * characterGravity.length() * jumpHeight);
-    const curRelVel = currentVelocity.dot(upWorld);
-    return currentVelocity.add(upWorld.scale(u - curRelVel));
-  };
+  scene.onDisposeObservable.add(() => keyboard.dispose());
 
   const headLocalOffset = new Vector3(0, h * 0.45, 0);
   const lookAhead = 1.0;
 
   scene.onBeforeRenderObservable.add(() => {
-    const charPos = characterController.getPosition();
+    const charPos = body.position;
     const headPos = charPos.add(headLocalOffset);
-    const yaw = controls.yaw;
-    const pitch = controls.pitch;
-    const forwardWorld = new Vector3(
-      Math.sin(yaw) * Math.cos(pitch),
-      Math.sin(pitch),
-      Math.cos(yaw) * Math.cos(pitch),
-    );
+    const forwardWorld = body.getDirection(Axis.Z);
 
     camera.position.copyFrom(headPos);
 
-    const target = headPos.add(forwardWorld.scale(lookAhead));
+    const target = headPos.add(forwardWorld.normalize().scale(lookAhead));
 
     camera.setTarget(target);
   });
 
-  scene.onAfterPhysicsObservable.add(() => {
-    const peNow = scene.getPhysicsEngine();
-    const dt =
-      peNow && peNow.getSubTimeStep() > 0
-        ? peNow.getSubTimeStep() / 1000.0
-        : (scene.deltaTime ?? 0) / 1000.0;
-
-    if (dt <= 0) return;
-
-    const down = new Vector3(0, -1, 0);
-    const support = characterController.checkSupport(dt, down);
-
-    controls.stepTurn(dt, turnSpeed);
-
-    Quaternion.FromEulerAnglesToRef(0, controls.yaw, 0, characterOrientation);
-      camera.rotation.y = controls.yaw;
-      camera.rotation.x = controls.pitch;
-
-    const desiredLinearVelocity = getDesiredVelocity(
-      dt,
-      support,
-      characterOrientation,
-      characterController.getVelocity(),
-    );
-
-    characterController.setVelocity(desiredLinearVelocity);
-    characterController.integrate(dt, support, characterGravity);
-  });
-
-  return { controls, controller: characterController };
+  return { player };
 };

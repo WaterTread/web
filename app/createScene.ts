@@ -1,5 +1,4 @@
 import type { Engine } from "@babylonjs/core/Engines/engine";
-import { Tools } from "@babylonjs/core/Misc/tools";
 import { Scene } from "@babylonjs/core/scene";
 
 // side-effects
@@ -72,13 +71,13 @@ export default function createScene(
     loading.setText("Loading environment…");
     await loadEnvironment(scene);
 
-    const { controls } = setupCharacter(scene, canvas, camera);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { player } = setupCharacter(scene, canvas, camera);
 
     loading.hide();
     createButtonsUI({ scene, host, canvas });
 
     canvas.focus();
-    controls.yaw += Math.PI + Tools.ToRadians(-25);
   })().catch((err: unknown) => {
     console.error("Init failed:", err);
     loading.setText("Failed to load.");
