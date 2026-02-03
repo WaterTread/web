@@ -44,14 +44,44 @@ export default function BabylonClient() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
+    <div
       style={{
+        position: "relative",
         width: "100%",
         height: "100vh",
-        display: "block",
-        touchAction: "none",
+        overflow: "hidden",
       }}
-    />
+    >
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "block",
+          touchAction: "none",
+        }}
+      />
+      <a
+        href="https://github.com/WaterTread/watertread/"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="WaterTread on GitHub"
+        style={{
+          position: "absolute",
+          top: "16px",
+          left: "16px",
+          width: "64px",
+          height: "64px",
+          display: "block",
+          opacity: 0.9,
+        }}
+      >
+        <img
+          src="/watertread.svg"
+          alt=""
+          style={{ width: "100%", height: "100%", display: "block" }}
+        />
+      </a>
+    </div>
   );
 }
