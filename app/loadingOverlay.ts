@@ -68,6 +68,12 @@ export class LoadingOverlay {
     instructions.style.alignItems = "center";
     instructions.style.marginTop = "6px";
 
+    const desktopWrap = document.createElement("div");
+    desktopWrap.className = "loading-overlay__desktop";
+    desktopWrap.style.display = "flex";
+    desktopWrap.style.gap = "18px";
+    desktopWrap.style.alignItems = "center";
+
     const keys = document.createElement("div");
     keys.style.display = "grid";
     keys.style.gridTemplateColumns = "repeat(3, 34px)";
@@ -133,20 +139,70 @@ export class LoadingOverlay {
     const line1 = document.createElement("div");
     line1.textContent = "Move: WASD or Arrow keys";
     const line2 = document.createElement("div");
-    line2.textContent = "Look: mouse / touchpad";
+    line2.textContent = "Drag: rotate · Click: move";
     const line3 = document.createElement("div");
-    line3.textContent = "Jump: Space";
+    line3.textContent = "Pinch (trackpad): forward/back";
 
     help.appendChild(line1);
     help.appendChild(line2);
     help.appendChild(line3);
 
-    instructions.appendChild(keys);
-    instructions.appendChild(help);
+    desktopWrap.appendChild(keys);
+    desktopWrap.appendChild(help);
+
+    const touchHelp = document.createElement("div");
+    touchHelp.className = "loading-overlay__touch";
+    touchHelp.style.display = "flex";
+    touchHelp.style.flexDirection = "column";
+    touchHelp.style.gap = "6px";
+    touchHelp.style.color = "rgba(255,255,255,0.9)";
+    touchHelp.style.fontFamily =
+      "system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    touchHelp.style.fontSize = "12px";
+    touchHelp.style.lineHeight = "1.2";
+    touchHelp.style.userSelect = "none";
+    touchHelp.style.textAlign = "center";
+
+    const t1 = document.createElement("div");
+    t1.textContent = "Drag: rotate";
+    const t2 = document.createElement("div");
+    t2.textContent = "Tap: move";
+    const t3 = document.createElement("div");
+    t3.textContent = "Pinch: forward/backward";
+
+    touchHelp.appendChild(t1);
+    touchHelp.appendChild(t2);
+    touchHelp.appendChild(t3);
+
+    instructions.appendChild(desktopWrap);
+    instructions.appendChild(touchHelp);
 
     card.appendChild(spinnerRow);
     card.appendChild(instructions);
     this.root.appendChild(card);
+
+    const applyInputMode = () => {
+      const isTouch =
+        (window.matchMedia &&
+          (window.matchMedia("(pointer: coarse)").matches ||
+            window.matchMedia("(any-pointer: coarse)").matches ||
+            window.matchMedia("(hover: none)").matches)) ||
+        navigator.maxTouchPoints > 0;
+
+      desktopWrap.style.display = isTouch ? "none" : "flex";
+      touchHelp.style.display = isTouch ? "flex" : "none";
+    };
+
+    applyInputMode();
+    if (window.matchMedia) {
+      const mq = window.matchMedia("(pointer: coarse)");
+      const mqAny = window.matchMedia("(any-pointer: coarse)");
+      const mqHover = window.matchMedia("(hover: none)");
+      const handler = () => applyInputMode();
+      mq.addEventListener?.("change", handler);
+      mqAny.addEventListener?.("change", handler);
+      mqHover.addEventListener?.("change", handler);
+    }
   }
 
   show(): void {
@@ -178,6 +234,7 @@ export class LoadingOverlay {
     st.id = id;
     st.textContent = `
       @keyframes loadingOverlaySpin { to { transform: rotate(360deg); } }
+      .loading-overlay__touch { display: none; }
     `;
     document.head.appendChild(st);
   }
