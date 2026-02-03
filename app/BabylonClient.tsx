@@ -66,6 +66,7 @@ export default function BabylonClient() {
         target="_blank"
         rel="noreferrer"
         aria-label="WaterTread on GitHub"
+        data-app-logo="true"
         style={{
           position: "absolute",
           top: "16px",
@@ -73,7 +74,9 @@ export default function BabylonClient() {
           width: "64px",
           height: "64px",
           display: "block",
-          opacity: 0.9,
+          opacity: 0,
+          pointerEvents: "none",
+          transition: "opacity 220ms ease",
         }}
       >
         <img

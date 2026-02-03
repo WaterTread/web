@@ -77,6 +77,12 @@ export default function createScene(
     loading.hide();
     createButtonsUI({ scene, host, canvas });
 
+    const logo = host.querySelector<HTMLElement>("[data-app-logo='true']");
+    if (logo) {
+      logo.style.opacity = "0.9";
+      logo.style.pointerEvents = "auto";
+    }
+
     canvas.focus();
   })().catch((err: unknown) => {
     console.error("Init failed:", err);
