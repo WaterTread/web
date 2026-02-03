@@ -7,6 +7,7 @@ import {
   type Nullable,
   type PickingInfo,
 } from "@babylonjs/core";
+import { Axis } from "@babylonjs/core/Maths/math.axis";
 import {
   KeyboardEventTypes,
   type KeyboardInfo,
@@ -20,6 +21,8 @@ export type RigidPlayer = {
   aggregate: PhysicsAggregate;
 };
 
+type Vec2 = { x: number; y: number };
+
 export class PointerController {
   private readonly scene: Scene;
   private readonly player: RigidPlayer;
@@ -32,6 +35,8 @@ export class PointerController {
   private readonly rotationThreshold = 0.01;
   private readonly stuckThreshold = 0.25;
   private readonly multiplierFactor = 5;
+  private readonly pinchDeadzonePx = 2;
+  private readonly pinchSpeed = 4;
 
   private isDragging = false;
   private isPointerDown = false;
@@ -40,9 +45,12 @@ export class PointerController {
   private targetPosition: Vector3 | null = null;
   private movementStartTime = 0;
   private lastPlayerPosition: Vector3 | null = null;
+  private activeTouches = new Map<number, Vec2>();
+  private pinchLastDistance: number | null = null;
 
   private pointerObserver: Observer<PointerInfo> | null = null;
   private keyboardObserver: Observer<KeyboardInfo> | null = null;
+  private wheelHandler: ((e: WheelEvent) => void) | null = null;
 
   constructor(scene: Scene, player: RigidPlayer) {
     this.scene = scene;
@@ -50,6 +58,7 @@ export class PointerController {
     this.canvas = scene.getEngine().getRenderingCanvas();
     this.registerPointerEvents();
     this.registerKeyboardEvents();
+    this.registerWheelEvents();
     this.initializeUpdateLoop();
   }
 
@@ -61,6 +70,10 @@ export class PointerController {
     if (this.keyboardObserver) {
       this.scene.onKeyboardObservable.remove(this.keyboardObserver);
       this.keyboardObserver = null;
+    }
+    if (this.wheelHandler && this.canvas) {
+      this.canvas.removeEventListener("wheel", this.wheelHandler);
+      this.wheelHandler = null;
     }
   }
 
@@ -110,6 +123,25 @@ export class PointerController {
     });
   }
 
+  private registerWheelEvents(): void {
+    if (!this.canvas) return;
+    this.wheelHandler = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+
+      const dirSign = event.deltaY < 0 ? 1 : -1;
+      const forward = this.player.mesh.getDirection(Axis.Z);
+      const desired = forward.scale(this.pinchSpeed * dirSign);
+      const currentY = this.player.aggregate.body.getLinearVelocity().y;
+      this.player.aggregate.body.setLinearVelocity(
+        new Vector3(desired.x, currentY, desired.z),
+      );
+      this.cancelClickMove();
+      event.preventDefault();
+    };
+
+    this.canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
+  }
+
   private onPointerDown(event: PointerEvent): void {
     this.isPointerDown = true;
     this.isDragging = false;
@@ -118,9 +150,31 @@ export class PointerController {
     this.pointerDownPosition = { x: event.clientX, y: event.clientY };
 
     this.setCursor("cursor-pointer");
+
+    if (event.pointerType === "touch") {
+      this.activeTouches.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (this.activeTouches.size >= 2) {
+        this.pinchLastDistance = this.getPinchDistance();
+      }
+    }
   }
 
   private onPointerMove(event: PointerEvent): void {
+    if (event.pointerType === "touch" && this.activeTouches.has(event.pointerId)) {
+      this.activeTouches.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (this.activeTouches.size >= 2) {
+        this.handlePinch();
+        event.preventDefault();
+        return;
+      }
+    }
+
     if (this.isPointerDown) {
       const deltaX = event.clientX - this.prevPointerDownPosition.x;
       const angularVelocityY = -deltaX * this.dragRotationSpeed;
@@ -140,6 +194,17 @@ export class PointerController {
     this.isPointerDown = false;
     this.isDragging = false;
     this.setCursor();
+
+    if (event.pointerType === "touch" && this.activeTouches.has(event.pointerId)) {
+      this.activeTouches.delete(event.pointerId);
+      if (this.activeTouches.size < 2) {
+        this.pinchLastDistance = null;
+        const currentVel = this.player.aggregate.body.getLinearVelocity();
+        this.player.aggregate.body.setLinearVelocity(
+          new Vector3(0, currentVel.y, 0),
+        );
+      }
+    }
 
     const dragDistance = Math.hypot(
       event.clientX - this.pointerDownPosition.x,
@@ -275,6 +340,37 @@ export class PointerController {
     );
     this.player.aggregate.body.setAngularDamping(this.angularDamping);
     this.player.aggregate.body.setAngularVelocity(angularVelocity);
+  }
+
+  private handlePinch(): void {
+    const distance = this.getPinchDistance();
+    if (this.pinchLastDistance === null) {
+      this.pinchLastDistance = distance;
+      return;
+    }
+
+    const delta = distance - this.pinchLastDistance;
+    if (Math.abs(delta) < this.pinchDeadzonePx) return;
+
+    // pinch in => forward, pinch out => backward
+    const dirSign = delta < 0 ? 1 : -1;
+    const forward = this.player.mesh.getDirection(Axis.Z);
+    const desired = forward.scale(this.pinchSpeed * dirSign);
+    const currentY = this.player.aggregate.body.getLinearVelocity().y;
+    this.player.aggregate.body.setLinearVelocity(
+      new Vector3(desired.x, currentY, desired.z),
+    );
+
+    this.pinchLastDistance = distance;
+    this.cancelClickMove();
+  }
+
+  private getPinchDistance(): number {
+    const points = Array.from(this.activeTouches.values());
+    if (points.length < 2) return 0;
+    const a = points[0];
+    const b = points[1];
+    return Math.hypot(b.x - a.x, b.y - a.y);
   }
 
   private pointerHoverCursorHandling(pickResult: PickingInfo): void {
