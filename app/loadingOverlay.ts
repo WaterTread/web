@@ -164,15 +164,18 @@ export class LoadingOverlay {
     touchHelp.style.textAlign = "center";
 
     const t1 = document.createElement("div");
-    t1.textContent = "Drag: rotate";
+    t1.textContent = "Horizontal Drag: rotate";
     const t2 = document.createElement("div");
-    t2.textContent = "Tap: move";
+    t2.textContent = "Tap: move to location";
     const t3 = document.createElement("div");
-    t3.textContent = "Pinch: forward/backward";
+    t3.textContent = "Pinch in: move forward";
+    const t4 = document.createElement("div");
+    t4.textContent = "Pinch out: move backward";
 
     touchHelp.appendChild(t1);
     touchHelp.appendChild(t2);
     touchHelp.appendChild(t3);
+    touchHelp.appendChild(t4);
 
     instructions.appendChild(desktopWrap);
     instructions.appendChild(touchHelp);
