@@ -7,12 +7,12 @@ import {
   type Nullable,
   type PickingInfo,
 } from "@babylonjs/core";
-import { Axis } from "@babylonjs/core/Maths/math.axis";
 import {
   KeyboardEventTypes,
   type KeyboardInfo,
 } from "@babylonjs/core/Events/keyboardEvents";
 import type { PointerInfo } from "@babylonjs/core/Events/pointerEvents";
+import { Axis } from "@babylonjs/core/Maths/math.axis";
 import type { Observer } from "@babylonjs/core/Misc/observable";
 import type { PhysicsAggregate } from "@babylonjs/core/Physics/v2/physicsAggregate";
 
@@ -139,7 +139,9 @@ export class PointerController {
       event.preventDefault();
     };
 
-    this.canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
+    this.canvas.addEventListener("wheel", this.wheelHandler, {
+      passive: false,
+    });
   }
 
   private onPointerDown(event: PointerEvent): void {
@@ -163,7 +165,10 @@ export class PointerController {
   }
 
   private onPointerMove(event: PointerEvent): void {
-    if (event.pointerType === "touch" && this.activeTouches.has(event.pointerId)) {
+    if (
+      event.pointerType === "touch" &&
+      this.activeTouches.has(event.pointerId)
+    ) {
       this.activeTouches.set(event.pointerId, {
         x: event.clientX,
         y: event.clientY,
@@ -195,7 +200,10 @@ export class PointerController {
     this.isDragging = false;
     this.setCursor();
 
-    if (event.pointerType === "touch" && this.activeTouches.has(event.pointerId)) {
+    if (
+      event.pointerType === "touch" &&
+      this.activeTouches.has(event.pointerId)
+    ) {
       this.activeTouches.delete(event.pointerId);
       if (this.activeTouches.size < 2) {
         this.pinchLastDistance = null;
