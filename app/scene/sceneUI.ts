@@ -128,10 +128,8 @@ export const createButtonsUI = (options: {
 
   const ui = document.createElement("div");
   ui.style.position = "absolute";
-  ui.style.right = "16px";
-  ui.style.bottom = "16px";
-  ui.style.paddingBottom = "env(safe-area-inset-bottom, 0px)";
-  ui.style.paddingRight = "env(safe-area-inset-right, 0px)";
+  ui.style.right = "calc(16px + env(safe-area-inset-right, 0px))";
+  ui.style.bottom = "calc(16px + env(safe-area-inset-bottom, 0px))";
   ui.style.zIndex = "9999";
   ui.style.display = "flex";
   ui.style.flexDirection = "column";
