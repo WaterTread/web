@@ -185,11 +185,13 @@ export class LoadingOverlay {
     const line2 = document.createElement("div");
     line2.textContent = "Drag horizontal: rotate view";
     const line3 = document.createElement("div");
-    line3.textContent = "Point: move to location";
+    line3.textContent = "Drag vertical: look up/down";
     const line4 = document.createElement("div");
-    line4.textContent = "Pinch in: move forward";
+    line4.textContent = "Point: move to location";
     const line5 = document.createElement("div");
-    line5.textContent = "Pinch out: move backward";
+    line5.textContent = "Pinch in: move forward";
+    const line6 = document.createElement("div");
+    line6.textContent = "Pinch out: move backward";
 
     helpKeyboard.appendChild(line1);
     desktopWrap.style.flexDirection = "column";
@@ -199,6 +201,7 @@ export class LoadingOverlay {
     helpMouse.appendChild(line3);
     helpMouse.appendChild(line4);
     helpMouse.appendChild(line5);
+    helpMouse.appendChild(line6);
 
     desktopWrap.appendChild(helpKeyboard);
     desktopWrap.appendChild(iconRow);
@@ -220,16 +223,19 @@ export class LoadingOverlay {
     const t1 = document.createElement("div");
     t1.textContent = "Drag horizontal: rotate view";
     const t2 = document.createElement("div");
-    t2.textContent = "Point: move to location";
+    t2.textContent = "Drag vertical: look up/down";
     const t3 = document.createElement("div");
-    t3.textContent = "Pinch in: move forward";
+    t3.textContent = "Point: move to location";
     const t4 = document.createElement("div");
-    t4.textContent = "Pinch out: move backward";
+    t4.textContent = "Pinch in: move forward";
+    const t5 = document.createElement("div");
+    t5.textContent = "Pinch out: move backward";
 
     touchHelp.appendChild(t1);
     touchHelp.appendChild(t2);
     touchHelp.appendChild(t3);
     touchHelp.appendChild(t4);
+    touchHelp.appendChild(t5);
 
     instructions.appendChild(desktopWrap);
     instructions.appendChild(touchHelp);

@@ -3,6 +3,7 @@ import {
   PointerEventTypes,
   Quaternion,
   Scene,
+  TransformNode,
   Vector3,
   type Nullable,
   type PickingInfo,
@@ -19,6 +20,7 @@ import type { PhysicsAggregate } from "@babylonjs/core/Physics/v2/physicsAggrega
 export type RigidPlayer = {
   mesh: AbstractMesh;
   aggregate: PhysicsAggregate;
+  headPivot?: TransformNode;
 };
 
 type Vec2 = { x: number; y: number };
@@ -35,8 +37,10 @@ export class PointerController {
   private readonly rotationThreshold = 0.01;
   private readonly stuckThreshold = 0.25;
   private readonly multiplierFactor = 5;
+  private readonly pitchSpeed = 0.001;
+  private readonly maxPitch = Math.PI / 9;
   private readonly pinchDeadzonePx = 2;
-  private readonly pinchSpeed = 4;
+  private readonly pinchSpeed = 2.5;
 
   private isDragging = false;
   private isPointerDown = false;
@@ -47,6 +51,7 @@ export class PointerController {
   private lastPlayerPosition: Vector3 | null = null;
   private activeTouches = new Map<number, Vec2>();
   private pinchLastDistance: number | null = null;
+  private headPitch = 0;
 
   private pointerObserver: Observer<PointerInfo> | null = null;
   private keyboardObserver: Observer<KeyboardInfo> | null = null;
@@ -182,9 +187,11 @@ export class PointerController {
 
     if (this.isPointerDown) {
       const deltaX = event.clientX - this.prevPointerDownPosition.x;
+      const deltaY = event.clientY - this.prevPointerDownPosition.y;
       const angularVelocityY = -deltaX * this.dragRotationSpeed;
       const angularVelocity = new Vector3(0, angularVelocityY, 0);
       this.player.aggregate.body.setAngularVelocity(angularVelocity);
+      this.updateHeadPitch(deltaY);
 
       this.pointerDownCursorHandling(event);
 
@@ -236,6 +243,9 @@ export class PointerController {
   private stopPlayerMovement(): void {
     this.player.aggregate.body.setLinearVelocity(Vector3.Zero());
     this.player.aggregate.body.setAngularVelocity(Vector3.Zero());
+    if (this.player.headPivot) {
+      this.player.headPivot.rotation.x = this.headPitch;
+    }
   }
 
   private movePlayerToPointerTarget(): void {
@@ -369,8 +379,8 @@ export class PointerController {
       new Vector3(desired.x, currentY, desired.z),
     );
 
-    this.pinchLastDistance = distance;
     this.cancelClickMove();
+    this.pinchLastDistance = distance;
   }
 
   private getPinchDistance(): number {
@@ -431,5 +441,15 @@ export class PointerController {
       "cursor-default",
     );
     if (className) host.classList.add(className);
+  }
+
+  private updateHeadPitch(deltaY: number): void {
+    if (!this.player.headPivot) return;
+    const nextPitch = this.headPitch - deltaY * this.pitchSpeed;
+    this.headPitch = Math.max(
+      -this.maxPitch,
+      Math.min(this.maxPitch, nextPitch),
+    );
+    this.player.headPivot.rotation.x = this.headPitch;
   }
 }

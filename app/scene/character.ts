@@ -2,6 +2,7 @@ import { Axis } from "@babylonjs/core/Maths/math.axis";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Scene } from "@babylonjs/core/scene";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { PhysicsAggregate } from "@babylonjs/core/Physics/v2/physicsAggregate";
 import {
   PhysicsMotionType,
@@ -60,19 +61,23 @@ export const setupCharacter = (
 
   camera.setTarget(body.position);
 
-  const player: RigidPlayer = { mesh: body, aggregate };
+  const headPivot = new TransformNode("CharacterHeadPivot", scene);
+  headPivot.parent = body;
+  const eyeHeight = 1.65;
+  headPivot.position = new Vector3(0, eyeHeight - h / 2, 0);
+  headPivot.rotation = new Vector3(0, 0, 0);
+
+  const player: RigidPlayer = { mesh: body, aggregate, headPivot };
   const pointer = new PointerController(scene, player);
   const keyboard = new KeyboardController(player, scene);
   scene.onDisposeObservable.add(() => pointer.dispose());
   scene.onDisposeObservable.add(() => keyboard.dispose());
 
-  const headLocalOffset = new Vector3(0, h * 0.45, 0);
   const lookAhead = 1.0;
 
   scene.onBeforeRenderObservable.add(() => {
-    const charPos = body.position;
-    const headPos = charPos.add(headLocalOffset);
-    const forwardWorld = body.getDirection(Axis.Z);
+    const headPos = headPivot.getAbsolutePosition();
+    const forwardWorld = headPivot.getDirection(Axis.Z);
 
     camera.position.copyFrom(headPos);
 
