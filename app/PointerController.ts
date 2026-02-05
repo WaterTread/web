@@ -38,7 +38,8 @@ export class PointerController {
   private readonly stuckThreshold = 0.25;
   private readonly multiplierFactor = 5;
   private readonly pitchSpeed = 0.001;
-  private readonly maxPitch = Math.PI / 9;
+  private readonly pitchRange = Math.PI / 9;
+  private readonly basePitch = Math.PI / 18;
   private readonly pinchDeadzonePx = 2;
   private readonly pinchSpeed = 2.5;
 
@@ -51,7 +52,7 @@ export class PointerController {
   private lastPlayerPosition: Vector3 | null = null;
   private activeTouches = new Map<number, Vec2>();
   private pinchLastDistance: number | null = null;
-  private headPitch = Math.PI / 18;
+  private headPitch = this.basePitch;
 
   private pointerObserver: Observer<PointerInfo> | null = null;
   private keyboardObserver: Observer<KeyboardInfo> | null = null;
@@ -450,10 +451,9 @@ export class PointerController {
   private updateHeadPitch(deltaY: number): void {
     if (!this.player.headPivot) return;
     const nextPitch = this.headPitch - deltaY * this.pitchSpeed;
-    this.headPitch = Math.max(
-      -this.maxPitch,
-      Math.min(this.maxPitch, nextPitch),
-    );
+    const minPitch = this.basePitch - this.pitchRange;
+    const maxPitch = this.basePitch + this.pitchRange;
+    this.headPitch = Math.max(minPitch, Math.min(maxPitch, nextPitch));
     this.player.headPivot.rotation.x = this.headPitch;
   }
 }
