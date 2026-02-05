@@ -51,7 +51,7 @@ export class PointerController {
   private lastPlayerPosition: Vector3 | null = null;
   private activeTouches = new Map<number, Vec2>();
   private pinchLastDistance: number | null = null;
-  private headPitch = 0;
+  private headPitch = Math.PI / 18;
 
   private pointerObserver: Observer<PointerInfo> | null = null;
   private keyboardObserver: Observer<KeyboardInfo> | null = null;
@@ -65,6 +65,10 @@ export class PointerController {
     this.registerKeyboardEvents();
     this.registerWheelEvents();
     this.initializeUpdateLoop();
+
+    if (this.player.headPivot) {
+      this.player.headPivot.rotation.x = this.headPitch;
+    }
   }
 
   dispose(): void {
