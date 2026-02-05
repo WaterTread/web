@@ -129,11 +129,13 @@ export const createButtonsUI = (options: {
   const ui = document.createElement("div");
   ui.style.position = "absolute";
   ui.style.right = "16px";
-  ui.style.bottom = "16px";
+  ui.style.top = "50%";
+  ui.style.bottom = "auto";
+  ui.style.transform = "translateY(-50%)";
   ui.style.zIndex = "9999";
   ui.style.display = "flex";
   ui.style.flexDirection = "column";
-  ui.style.gap = "10px";
+  ui.style.gap = "8px";
   ui.style.alignItems = "center";
 
   const makeRoundButton = (iconClass: string, title: string) => {
@@ -141,8 +143,8 @@ export const createButtonsUI = (options: {
     b.type = "button";
     b.title = title;
 
-    b.style.width = "52px";
-    b.style.height = "52px";
+    b.style.width = "44px";
+    b.style.height = "44px";
     b.style.borderRadius = "999px";
     b.style.border = "1px solid rgba(255,255,255,0.14)";
     b.style.background = "rgba(0,0,0,0.70)";
@@ -168,7 +170,7 @@ export const createButtonsUI = (options: {
     const i = document.createElement("i");
     i.className = iconClass;
     i.style.color = "white";
-    i.style.fontSize = "18px";
+    i.style.fontSize = "16px";
     i.style.lineHeight = "1";
 
     b.appendChild(i);
@@ -236,26 +238,6 @@ export const createButtonsUI = (options: {
   ui.appendChild(playPauseBtn);
   ui.appendChild(xrayBtn);
 
-  const applyViewportOffsets = () => {
-    const vv = window.visualViewport;
-    const offsetRight = vv ? Math.max(0, window.innerWidth - vv.width - vv.offsetLeft) : 0;
-    const offsetBottom = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-    ui.style.right = `calc(16px + env(safe-area-inset-right, 0px) + ${offsetRight}px)`;
-    ui.style.bottom = `calc(16px + env(safe-area-inset-bottom, 0px) + ${offsetBottom}px)`;
-  };
-
-  applyViewportOffsets();
-
-  const onViewportChange = () => applyViewportOffsets();
-  window.addEventListener("resize", onViewportChange);
-  window.visualViewport?.addEventListener("resize", onViewportChange);
-  window.visualViewport?.addEventListener("scroll", onViewportChange);
-
   host.appendChild(ui);
-  scene.onDisposeObservable.add(() => {
-    window.removeEventListener("resize", onViewportChange);
-    window.visualViewport?.removeEventListener("resize", onViewportChange);
-    window.visualViewport?.removeEventListener("scroll", onViewportChange);
-    ui.remove();
-  });
+  scene.onDisposeObservable.add(() => ui.remove());
 };
