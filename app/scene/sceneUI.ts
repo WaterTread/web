@@ -128,8 +128,8 @@ export const createButtonsUI = (options: {
 
   const ui = document.createElement("div");
   ui.style.position = "absolute";
-  ui.style.right = "calc(16px + env(safe-area-inset-right, 0px))";
-  ui.style.bottom = "calc(16px + env(safe-area-inset-bottom, 0px))";
+  ui.style.right = "16px";
+  ui.style.bottom = "16px";
   ui.style.zIndex = "9999";
   ui.style.display = "flex";
   ui.style.flexDirection = "column";
@@ -236,6 +236,26 @@ export const createButtonsUI = (options: {
   ui.appendChild(playPauseBtn);
   ui.appendChild(xrayBtn);
 
+  const applyViewportOffsets = () => {
+    const vv = window.visualViewport;
+    const offsetRight = vv ? Math.max(0, window.innerWidth - vv.width - vv.offsetLeft) : 0;
+    const offsetBottom = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    ui.style.right = `calc(16px + env(safe-area-inset-right, 0px) + ${offsetRight}px)`;
+    ui.style.bottom = `calc(16px + env(safe-area-inset-bottom, 0px) + ${offsetBottom}px)`;
+  };
+
+  applyViewportOffsets();
+
+  const onViewportChange = () => applyViewportOffsets();
+  window.addEventListener("resize", onViewportChange);
+  window.visualViewport?.addEventListener("resize", onViewportChange);
+  window.visualViewport?.addEventListener("scroll", onViewportChange);
+
   host.appendChild(ui);
-  scene.onDisposeObservable.add(() => ui.remove());
+  scene.onDisposeObservable.add(() => {
+    window.removeEventListener("resize", onViewportChange);
+    window.visualViewport?.removeEventListener("resize", onViewportChange);
+    window.visualViewport?.removeEventListener("scroll", onViewportChange);
+    ui.remove();
+  });
 };
